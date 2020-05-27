@@ -1,6 +1,7 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Voyager.Api.Authorization;
@@ -20,6 +21,11 @@ namespace Voyager.Api
 			this.httpContextAccessor = httpContextAccessor;
 		}
 
+		public ClaimsPrincipal GetUser()
+		{
+			return httpContextAccessor.HttpContext.User;
+		}
+
 		public async Task<TActionResult> Handle(TRequest request, CancellationToken cancellationToken)
 		{
 			var policyName = typeof(TPolicy).FullName;
@@ -27,7 +33,15 @@ namespace Voyager.Api
 			{
 				return await HandleRequestInternal(request, cancellationToken);
 			}
-			var result = await authorizationService.AuthorizeAsync(httpContextAccessor.HttpContext.User, policyName);
+			AuthorizationResult result;
+			if (request is ResourceRequest resourceRequest)
+			{
+				result = await authorizationService.AuthorizeAsync(httpContextAccessor.HttpContext.User, resourceRequest.GetResource(), policyName);
+			}
+			else
+			{
+				result = await authorizationService.AuthorizeAsync(httpContextAccessor.HttpContext.User, policyName);
+			}
 			if (result.Succeeded)
 			{
 				return await HandleRequestInternal(request, cancellationToken);

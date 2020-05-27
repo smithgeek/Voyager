@@ -6,6 +6,8 @@
     <Authors>Brent Smith</Authors>
     <Company>Smithgeek LLC</Company>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/smithgeek/Voyager</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
