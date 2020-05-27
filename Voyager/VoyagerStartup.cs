@@ -11,7 +11,6 @@ using System.Runtime.CompilerServices;
 using Voyager.Api;
 using Voyager.Api.Authorization;
 using Voyager.Configuration;
-using Voyager.Configuration.Extensions;
 using Voyager.Mediatr;
 using Voyager.Middleware;
 using Voyager.SetProperties;
@@ -25,13 +24,12 @@ namespace Voyager
 		public static void Configure(VoyagerConfigurationBuilder builder, IServiceCollection services)
 		{
 			services.AddSingleton<ExceptionHandler>();
-			services.RegisterConfiguration<VoyagerConfiguration>(null, config =>
+			var voyagerConfig = new VoyagerConfiguration
 			{
-				if (config.EnvironmentName == null)
-				{
-					config.EnvironmentName = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "DEVELOPMENT";
-				}
-			});
+				EnvironmentName = Environment.GetEnvironmentVariable("VOYAGER_ENVIRONMENT") ??
+					Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "DEVELOPMENT"
+			};
+			services.AddSingleton(voyagerConfig);
 			foreach (var assembly in builder.Assemblies)
 			{
 				services.AddMediatR(assembly);

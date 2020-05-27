@@ -1,7 +1,9 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Shared;
+using System.Linq;
 using Voyager;
 using Voyager.Azure.Functions;
 
@@ -26,6 +28,9 @@ namespace DemoFunctionsApp
 
 		public override void Configure(IFunctionsHostBuilder builder)
 		{
+			var config = new ConfigurationBuilder().AddEnvironmentVariables().Build();
+			var section = config.GetSection("Voyager");
+			var cs = section.GetChildren().ToList();
 			builder.AddVoyager(ConfigureServices, Configure);
 		}
 

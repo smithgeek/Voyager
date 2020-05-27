@@ -4,6 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shared;
+using System.Linq;
 using Voyager;
 
 namespace DemoApi
@@ -16,17 +17,6 @@ namespace DemoApi
 		}
 
 		public IConfiguration Configuration { get; }
-
-		// This method gets called by the runtime. Use this method to add services to the container.
-		public void ConfigureServices(IServiceCollection services)
-		{
-			services.AddControllers();
-			services.AddVoyager(c =>
-			{
-				c.AddAssemblyWith<Startup>();
-				c.AddAssemblyWith<SampleMiddleware>();
-			});
-		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
 		public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -48,6 +38,19 @@ namespace DemoApi
 				endpoints.MapControllers();
 			});
 			app.UseVoyagerEndpoints();
+		}
+
+		// This method gets called by the runtime. Use this method to add services to the container.
+		public void ConfigureServices(IServiceCollection services)
+		{
+			var section = Configuration.GetSection("Voyager");
+			var cs = section.GetChildren().ToList();
+			services.AddControllers();
+			services.AddVoyager(c =>
+			{
+				c.AddAssemblyWith<Startup>();
+				c.AddAssemblyWith<SampleMiddleware>();
+			});
 		}
 	}
 }
