@@ -8,6 +8,15 @@ using Voyager.Api.Authorization;
 
 namespace Voyager.Api
 {
+	abstract public class EndpointHandler<TRequest> : EndpointHandler<TRequest, AnonymousPolicy>
+		where TRequest : IRequest<IActionResult>
+	{
+		public EndpointHandler(IHttpContextAccessor httpContextAccessor)
+		: base(httpContextAccessor)
+		{
+		}
+	}
+
 	abstract public class EndpointHandler<TRequest, TPolicy> : BaseEndpointHandler<TRequest, IActionResult, TPolicy>
 		where TRequest : IRequest<IActionResult>
 		where TPolicy : Policy
