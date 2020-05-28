@@ -153,9 +153,9 @@ public class GetVoyagerInfoRequest : EndpointRequest<GetVoyagerInfoResponse>
 
 public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest, GetVoyagerInfoResponse, AnonymousPolicy>
 {
-    public override ActionResult<GetVaoyagerInfoResponse> HandleRequest(GetVoyagerInfoRequest request)
+    public override ActionResult<GetVoyagerInfoResponse> HandleRequest(GetVoyagerInfoRequest request)
     {
-        return Ok(new GetVaoyagerInfoResponse{ Message = "Voyager is awesome!" });
+        return new GetVoyagerInfoResponse{ Message = "Voyager is awesome!" };
     }
 }
 ```
