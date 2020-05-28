@@ -1,10 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Shared.GetWeatherForecast;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace DemoApi.Controllers
+namespace SampleApi.Controllers
 {
 	[ApiController]
 	[Route("[controller]")]

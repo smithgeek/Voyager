@@ -5,7 +5,7 @@ using Microsoft.Azure.WebJobs.Extensions.Http;
 using System.Threading.Tasks;
 using Voyager.Api;
 
-namespace DemoFunctionsApp
+namespace SampleFunctionsApp
 {
 	public class Routes
 	{

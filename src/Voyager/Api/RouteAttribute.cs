@@ -8,10 +8,8 @@ namespace Voyager.Api
 	public class RouteAttribute : Attribute
 	{
 		public RouteAttribute(HttpMethod method, string template)
+			: this(Enum.GetName(typeof(HttpMethod), method), template)
 		{
-			Template = template;
-			TemplateMatcher = GetTemplateMatcher(template);
-			Method = Enum.GetName(typeof(HttpMethod), method).ToUpperInvariant();
 		}
 
 		public RouteAttribute(string method, string template)

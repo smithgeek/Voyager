@@ -7,9 +7,9 @@ using System.Linq;
 using Voyager;
 using Voyager.Azure.Functions;
 
-[assembly: FunctionsStartup(typeof(DemoFunctionsApp.Startup))]
+[assembly: FunctionsStartup(typeof(SampleFunctionsApp.Startup))]
 
-namespace DemoFunctionsApp
+namespace SampleFunctionsApp
 {
 	public class Startup : FunctionsStartup
 	{

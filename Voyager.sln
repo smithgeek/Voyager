@@ -5,15 +5,15 @@ VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager", "src\Voyager\Voyager.csproj", "{002469C6-80ED-479E-9DF2-2BB1F360F195}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Demo", "Demo", "{94C40C68-D0F4-4831-8014-72C6D1424ACA}"
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Samples", "Samples", "{94C40C68-D0F4-4831-8014-72C6D1424ACA}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shared", "Demo\Shared\Shared.csproj", "{606112B7-FB92-42D9-8C33-215D69E9AC50}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shared", "Samples\Shared\Shared.csproj", "{606112B7-FB92-42D9-8C33-215D69E9AC50}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoFunctionsApp", "Demo\DemoFunctionsApp\DemoFunctionsApp.csproj", "{F12F3FB5-5358-4C26-821D-A9728F194297}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleFunctionsApp", "Samples\SampleFunctionsApp\SampleFunctionsApp.csproj", "{F12F3FB5-5358-4C26-821D-A9728F194297}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.Azure.Functions", "src\Voyager.Azure.Functions\Voyager.Azure.Functions.csproj", "{D7B84010-0B43-436C-A592-A1B07A571784}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoApi", "Demo\DemoApi\DemoApi.csproj", "{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SampleApi", "Samples\SampleApi\SampleApi.csproj", "{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{EA72A2E3-8F1A-4CB2-8A8A-DDFD10123DDD}"
 EndProject

@@ -9,5 +9,9 @@
 		<ProjectReference Include="..\Shared\Shared.csproj" />
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="Api\" />
+	</ItemGroup>
+
 
 </Project>

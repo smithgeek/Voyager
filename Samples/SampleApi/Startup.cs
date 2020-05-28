@@ -7,7 +7,7 @@ using Shared;
 using System.Linq;
 using Voyager;
 
-namespace DemoApi
+namespace SampleApi
 {
 	public class Startup
 	{
