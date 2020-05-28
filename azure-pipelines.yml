@@ -32,7 +32,7 @@ steps:
     displayName: "Code Coverage"
     inputs:
       command: "test"
-      arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
+      arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage" /p:CoverletOutput=$(Build.SourcesDirectory)/TestResults/Coverage/'
       publishTestResults: true
       projects: "Tests/**/*.csproj" # update with your test project directory
 
