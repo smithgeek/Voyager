@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Routing;
@@ -6,10 +7,14 @@ using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Threading.Tasks;
 
-namespace Microsoft.AspNetCore.Http
+namespace Voyager
 {
 	public static class VoyagerHttpContextExtensions
 	{
+		private static readonly ActionDescriptor EmptyActionDescriptor = new ActionDescriptor();
+
+		private static readonly RouteData EmptyRouteData = new RouteData();
+
 		public static string GetUserIpAddress(this HttpContext context)
 		{
 			if (context.Request.Headers.ContainsKey("X-Real-IP"))
@@ -22,10 +27,6 @@ namespace Microsoft.AspNetCore.Http
 			}
 			return context.Connection.RemoteIpAddress.ToString();
 		}
-
-		private static readonly RouteData EmptyRouteData = new RouteData();
-
-		private static readonly ActionDescriptor EmptyActionDescriptor = new ActionDescriptor();
 
 		public static Task WriteResultAsync(this HttpContext context, object response)
 		{

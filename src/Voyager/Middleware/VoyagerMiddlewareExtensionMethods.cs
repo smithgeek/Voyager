@@ -1,9 +1,16 @@
-﻿using Voyager.Middleware;
+﻿using Microsoft.AspNetCore.Builder;
+using Voyager.Middleware;
 
-namespace Microsoft.AspNetCore.Builder
+namespace Voyager
 {
 	public static class VoyagerMiddlewareExtensionMethods
 	{
+		public static IApplicationBuilder UseVoyagerEndpoints(this IApplicationBuilder applicationBuilder)
+		{
+			applicationBuilder.UseMiddleware<VoyagerEndpointMiddleware>();
+			return applicationBuilder;
+		}
+
 		public static IApplicationBuilder UseVoyagerExceptionHandler(this IApplicationBuilder applicationBuilder)
 		{
 			applicationBuilder.UseMiddleware<VoyagerExceptionHandlerMiddleware>();
@@ -13,12 +20,6 @@ namespace Microsoft.AspNetCore.Builder
 		public static IApplicationBuilder UseVoyagerRouting(this IApplicationBuilder applicationBuilder)
 		{
 			applicationBuilder.UseMiddleware<VoyagerRoutingMiddleware>();
-			return applicationBuilder;
-		}
-
-		public static IApplicationBuilder UseVoyagerEndpoints(this IApplicationBuilder applicationBuilder)
-		{
-			applicationBuilder.UseMiddleware<VoyagerEndpointMiddleware>();
 			return applicationBuilder;
 		}
 	}

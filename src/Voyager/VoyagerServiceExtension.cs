@@ -6,11 +6,10 @@ namespace Voyager
 {
 	public static class VoyagerServiceExtension
 	{
-		public static void AddVoyager(this IServiceCollection services, Action<VoyagerConfigurationBuilder> configure)
+		public static void AddVoyager(this IServiceCollection services, Action<VoyagerConfigurationBuilder> configure = null)
 		{
-			services.AddMvcCore();
 			var configurationBuilder = new VoyagerConfigurationBuilder();
-			configure(configurationBuilder);
+			configure?.Invoke(configurationBuilder);
 			VoyagerStartup.Configure(configurationBuilder, services);
 		}
 	}

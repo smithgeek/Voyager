@@ -23,29 +23,37 @@ namespace Voyager
 	{
 		public static void Configure(VoyagerConfigurationBuilder builder, IServiceCollection services)
 		{
-			services.AddSingleton<ExceptionHandler, DefaultExceptionHandler>();
-			var voyagerConfig = new VoyagerConfiguration
+			var isRegistered = services.Any(s => s.ImplementationType == typeof(IsRegistered));
+			if (!isRegistered)
 			{
-				EnvironmentName = Environment.GetEnvironmentVariable("VOYAGER_ENVIRONMENT") ??
-					Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "DEVELOPMENT"
-			};
-			services.AddSingleton(voyagerConfig);
+				services.AddScoped<IsRegistered>();
+				services.AddMvcCore();
+				services.AddSingleton<ExceptionHandler, DefaultExceptionHandler>();
+				var voyagerConfig = new VoyagerConfiguration
+				{
+					EnvironmentName = Environment.GetEnvironmentVariable("VOYAGER_ENVIRONMENT") ??
+						Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "DEVELOPMENT"
+				};
+				services.AddSingleton(voyagerConfig);
+				builder.AddAssemblyWith<VoyagerConfigurationBuilder>();
+				services.AddHttpContextAccessor();
+				services.AddScoped<AppRouter>();
+				services.TryAddSingleton<ModelBinder, DefaultModelBinder>();
+				services.TryAddTransient<PropertySetterFactory, DefaultPropertySetterFactory>();
+				AddPropertySetters(services, builder.Assemblies);
+				services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
+				services.AddValidatorsFromAssemblies(builder.Assemblies);
+				services.AddLogging();
+			}
+
 			foreach (var assembly in builder.Assemblies)
 			{
 				services.AddMediatR(assembly);
 			}
-			builder.AddAssemblyWith<VoyagerConfigurationBuilder>();
-			services.AddHttpContextAccessor();
-			services.AddScoped<AppRouter>();
-			services.TryAddSingleton<ModelBinder, DefaultModelBinder>();
-			services.TryAddTransient<PropertySetterFactory, DefaultPropertySetterFactory>();
-			AddPropertySetters(services, builder.Assemblies);
+
 			RegisterMediatorHandlers(services, builder.Assemblies);
 			RegisterMediatorRequests(services, builder.Assemblies);
 			AddCustomAuthorization(services, builder.Assemblies);
-			services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-			services.AddValidatorsFromAssemblies(builder.Assemblies);
-			services.AddLogging();
 		}
 
 		internal static IEnumerable<Type> GetAllTypesImplementingType(Type openGenericType, Assembly assembly)
@@ -114,26 +122,32 @@ namespace Voyager
 
 		private static void AddCustomAuthorization(IServiceCollection services, IEnumerable<Assembly> assemblies)
 		{
+			var policies = new List<Policy>();
+			foreach (var assembly in assemblies)
+			{
+				foreach (var policyType in assembly.GetTypes().Where(t => !t.IsInterface && typeof(Policy).IsAssignableFrom(t)))
+				{
+					services.AddScoped(policyType);
+					policies.Add((Policy)Activator.CreateInstance(policyType));
+				}
+			}
+
 			services.AddAuthorizationCore(options =>
 			{
-				foreach (var assembly in assemblies)
+				foreach (var policy in policies)
 				{
-					foreach (var policyType in assembly.GetTypes().Where(t => !t.IsInterface && typeof(Policy).IsAssignableFrom(t)))
+					options.AddPolicy(policy.GetType().FullName, policyBuilder =>
 					{
-						var policy = (Policy)Activator.CreateInstance(policyType);
-						options.AddPolicy(policyType.FullName, policyBuilder =>
+						var requirements = policy.GetRequirements();
+						if (requirements is null || requirements.Count == 0)
 						{
-							var requirements = policy.GetRequirements();
-							if (requirements is null || requirements.Count == 0)
-							{
-								policyBuilder.RequireAssertion(c => { return true; });
-							}
-							else
-							{
-								policyBuilder.Requirements = policy.GetRequirements();
-							}
-						});
-					}
+							policyBuilder.RequireAssertion(c => { return true; });
+						}
+						else
+						{
+							policyBuilder.Requirements = policy.GetRequirements();
+						}
+					});
 				}
 			});
 			foreach (var assembly in assemblies)
@@ -170,5 +184,8 @@ namespace Voyager
 				}
 			}
 		}
+
+		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.
+		private class IsRegistered { }
 	}
 }

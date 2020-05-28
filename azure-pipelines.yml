@@ -29,7 +29,7 @@ steps:
       versionEnvVar: "GitVersion.AssemblySemVer"
 
   - task: DotNetCoreCLI@2
-    displayName: "Code Coverage"
+    displayName: "Tests"
     inputs:
       command: "test"
       arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
