@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using Voyager.Api;
 
@@ -30,7 +29,14 @@ namespace Voyager.Middleware
 				{
 					if (route.TemplateMatcher.TryMatch(context.Request.Path.Value, context.Request.RouteValues))
 					{
-						context.SetEndpoint(new Endpoint(c => Route(route.RequestType, c), new EndpointMetadataCollection(Enumerable.Empty<object>()), route.RequestType.Name));
+						context.Features.Set<VoyagerEndpointFeature>(new EndpointFeature
+						{
+							Endpoint = new VoyagerEndpoint
+							{
+								RequestDelegate = c => Route(route.RequestType, c),
+								Name = route.RequestType.Name
+							}
+						});
 						break;
 					}
 				}
@@ -44,6 +50,11 @@ namespace Voyager.Middleware
 			var mediator = context.RequestServices.GetService<IMediator>();
 			var response = await mediator.Send(mediatorRequest);
 			await context.WriteResultAsync(response);
+		}
+
+		internal class EndpointFeature : VoyagerEndpointFeature
+		{
+			public VoyagerEndpoint Endpoint { get; set; }
 		}
 	}
 }

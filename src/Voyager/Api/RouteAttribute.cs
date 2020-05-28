@@ -23,9 +23,19 @@ namespace Voyager.Api
 
 		public string Method { get; }
 
+		public string Template { get; set; }
 		public TemplateMatcher TemplateMatcher { get; }
 
-		public string Template { get; set; }
+		public EndpointRoute ToEndpointRoute(Type type)
+		{
+			return new EndpointRoute
+			{
+				Method = Method,
+				TemplateMatcher = TemplateMatcher,
+				RequestType = type,
+				Template = Template
+			};
+		}
 
 		private static RouteValueDictionary GetDefaults(RouteTemplate parsedTemplate)
 		{

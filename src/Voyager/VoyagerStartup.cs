@@ -105,13 +105,7 @@ namespace Voyager
 						var routeAttributes = type.GetCustomAttributes<RouteAttribute>();
 						foreach (var routeAttribute in routeAttributes)
 						{
-							services.AddTransient((serviceProvider) => new EndpointRoute
-							{
-								Method = routeAttribute.Method,
-								TemplateMatcher = routeAttribute.TemplateMatcher,
-								RequestType = type,
-								Template = routeAttribute.Template
-							});
+							services.AddTransient((serviceProvider) => routeAttribute.ToEndpointRoute(type));
 						}
 					}
 				}

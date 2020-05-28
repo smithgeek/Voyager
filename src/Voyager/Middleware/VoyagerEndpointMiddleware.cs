@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Features;
 using System.Threading.Tasks;
 
 namespace Voyager.Middleware
@@ -15,7 +14,7 @@ namespace Voyager.Middleware
 
 		public async Task Invoke(HttpContext context)
 		{
-			var endpoint = context.Features.Get<IEndpointFeature>()?.Endpoint;
+			var endpoint = context.Features.Get<VoyagerEndpointFeature>()?.Endpoint;
 			if (endpoint?.RequestDelegate != null)
 			{
 				await endpoint.RequestDelegate(context);
