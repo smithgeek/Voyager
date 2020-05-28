@@ -11,12 +11,12 @@ using Voyager.Configuration;
 
 namespace Voyager.Middleware
 {
-	public class ExceptionHandler
+	public class DefaultExceptionHandler : ExceptionHandler
 	{
 		private readonly VoyagerConfiguration configuration;
-		private readonly ILogger<ExceptionHandler> logger;
+		private readonly ILogger<DefaultExceptionHandler> logger;
 
-		public ExceptionHandler(VoyagerConfiguration configuration, ILogger<ExceptionHandler> logger)
+		public DefaultExceptionHandler(VoyagerConfiguration configuration, ILogger<DefaultExceptionHandler> logger)
 		{
 			this.configuration = configuration;
 			this.logger = logger;

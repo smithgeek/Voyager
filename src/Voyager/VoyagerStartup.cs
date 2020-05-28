@@ -15,7 +15,7 @@ using Voyager.Mediatr;
 using Voyager.Middleware;
 using Voyager.SetProperties;
 
-[assembly: InternalsVisibleTo("Voyager.Tests")]
+[assembly: InternalsVisibleTo("Voyager.UnitTests")]
 
 namespace Voyager
 {
@@ -23,7 +23,7 @@ namespace Voyager
 	{
 		public static void Configure(VoyagerConfigurationBuilder builder, IServiceCollection services)
 		{
-			services.AddSingleton<ExceptionHandler>();
+			services.AddSingleton<ExceptionHandler, DefaultExceptionHandler>();
 			var voyagerConfig = new VoyagerConfiguration
 			{
 				EnvironmentName = Environment.GetEnvironmentVariable("VOYAGER_ENVIRONMENT") ??

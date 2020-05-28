@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager", "Voyager\Voyager.csproj", "{002469C6-80ED-479E-9DF2-2BB1F360F195}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager", "src\Voyager\Voyager.csproj", "{002469C6-80ED-479E-9DF2-2BB1F360F195}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Demo", "Demo", "{94C40C68-D0F4-4831-8014-72C6D1424ACA}"
 EndProject
@@ -11,9 +11,15 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Shared", "Demo\Shared\Share
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoFunctionsApp", "Demo\DemoFunctionsApp\DemoFunctionsApp.csproj", "{F12F3FB5-5358-4C26-821D-A9728F194297}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Voyager.Azure.Functions", "Voyager.Azure.Functions\Voyager.Azure.Functions.csproj", "{D7B84010-0B43-436C-A592-A1B07A571784}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.Azure.Functions", "src\Voyager.Azure.Functions\Voyager.Azure.Functions.csproj", "{D7B84010-0B43-436C-A592-A1B07A571784}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DemoApi", "Demo\DemoApi\DemoApi.csproj", "{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DemoApi", "Demo\DemoApi\DemoApi.csproj", "{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{EA72A2E3-8F1A-4CB2-8A8A-DDFD10123DDD}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.UnitTests", "Tests\UnitTests\Voyager.UnitTests.csproj", "{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9BA957EA-1FB6-4601-8CD2-28356DD9C858}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -41,14 +47,21 @@ Global
 		{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{002469C6-80ED-479E-9DF2-2BB1F360F195} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
 		{606112B7-FB92-42D9-8C33-215D69E9AC50} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
 		{F12F3FB5-5358-4C26-821D-A9728F194297} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
+		{D7B84010-0B43-436C-A592-A1B07A571784} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
 		{6A2CDF21-F126-4C7C-A20D-3D1BF3F35035} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
+		{CEDD17D5-2D9B-4868-A0C5-AF225FD8E795} = {EA72A2E3-8F1A-4CB2-8A8A-DDFD10123DDD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1A85F59D-8A0C-422D-B7D6-326C61D9328B}

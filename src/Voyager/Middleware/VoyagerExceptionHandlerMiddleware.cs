@@ -1,34 +1,35 @@
 ﻿using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
-using Voyager.Api;
 
 namespace Voyager.Middleware
 {
 	public class VoyagerExceptionHandlerMiddleware
 	{
+		private readonly IEnumerable<ExceptionHandlerConfigurator> configurators;
 		private readonly ExceptionHandler exceptionHandler;
-		private readonly ILogger<VoyagerExceptionHandlerMiddleware> logger;
 		private readonly RequestDelegate next;
 
-		public VoyagerExceptionHandlerMiddleware(RequestDelegate next, ILogger<VoyagerExceptionHandlerMiddleware> logger, ExceptionHandler exceptionHandler)
+		public VoyagerExceptionHandlerMiddleware(RequestDelegate next, ExceptionHandler exceptionHandler, IEnumerable<ExceptionHandlerConfigurator> configurators)
 		{
 			this.next = next;
-			this.logger = logger;
 			this.exceptionHandler = exceptionHandler;
+			this.configurators = configurators;
 		}
 
 		public async Task InvokeAsync(HttpContext context)
 		{
 			try
 			{
-				logger.LogTrace($"Try {context.Request.GetType().FullName}");
 				await next(context);
 			}
 			catch (Exception e)
 			{
-				logger.LogTrace("Handler threw an exception");
+				foreach (var configurator in configurators)
+				{
+					configurator.Configure();
+				}
 				var result = exceptionHandler.HandleException(e);
 				await context.WriteResultAsync(result);
 			}

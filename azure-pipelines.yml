@@ -29,10 +29,31 @@ steps:
       versionEnvVar: "GitVersion.AssemblySemVer"
 
   - task: DotNetCoreCLI@2
+    displayName: "Run Tests"
+    inputs:
+      command: test
+      projects: "Tests/**/*.csproj"
+      arguments: "--configuration $(buildConfiguration)"
+
+  - task: DotNetCoreCLI@2
+    displayName: "Code Coverage"
+    inputs:
+      command: "test"
+      arguments: "--configuration $(buildConfiguration) /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=$(Build.SourcesDirectory)/TestResults/Coverage/"
+      publishTestResults: true
+      projects: "Tests/**/*.csproj" # update with your test project directory
+
+  - task: PublishCodeCoverageResults@1
+    displayName: "Publish code coverage report"
+    inputs:
+      codeCoverageTool: "Cobertura"
+      summaryFileLocation: "$(Build.SourcesDirectory)/**/coverage.cobertura.xml"
+
+  - task: DotNetCoreCLI@2
     displayName: "dotnet pack"
     inputs:
       command: "pack"
-      packagesToPack: "**/*.csproj"
+      packagesToPack: "src/**/*.csproj"
       versioningScheme: "byEnvVar"
       versionEnvVar: "GitVersion.NuGetVersion"
 

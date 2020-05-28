@@ -8,9 +8,9 @@
 		<PackageReference Include="Microsoft.NET.Sdk.Functions" Version="3.0.3" />
 	</ItemGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\..\Voyager.Azure.Functions\Voyager.Azure.Functions.csproj" />
+		<ProjectReference Include="..\..\src\Voyager.Azure.Functions\Voyager.Azure.Functions.csproj" />
 		<ProjectReference Include="..\Shared\Shared.csproj" />
-		<ProjectReference Include="..\..\Voyager\Voyager.csproj" />
+		<ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
 	</ItemGroup>
 	<ItemGroup>
 		<None Update="host.json">
