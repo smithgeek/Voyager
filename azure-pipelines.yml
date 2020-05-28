@@ -29,17 +29,10 @@ steps:
       versionEnvVar: "GitVersion.AssemblySemVer"
 
   - task: DotNetCoreCLI@2
-    displayName: "Run Tests"
-    inputs:
-      command: test
-      projects: "Tests/**/*.csproj"
-      arguments: "--configuration $(buildConfiguration)"
-
-  - task: DotNetCoreCLI@2
     displayName: "Code Coverage"
     inputs:
       command: "test"
-      arguments: "--configuration $(buildConfiguration) /p:CollectCoverage=true /p:CoverletOutputFormat=cobertura /p:CoverletOutput=$(Build.SourcesDirectory)/TestResults/Coverage/"
+      arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
       publishTestResults: true
       projects: "Tests/**/*.csproj" # update with your test project directory
 
