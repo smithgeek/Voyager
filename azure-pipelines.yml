@@ -32,7 +32,7 @@ steps:
     displayName: "Code Coverage"
     inputs:
       command: "test"
-      arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage" /p:CoverletOutput=$(Build.SourcesDirectory)/TestResults/Coverage/'
+      arguments: '--configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
       publishTestResults: true
       projects: "Tests/**/*.csproj" # update with your test project directory
 
@@ -40,7 +40,7 @@ steps:
     displayName: "Publish code coverage report"
     inputs:
       codeCoverageTool: "Cobertura"
-      summaryFileLocation: "$(Build.SourcesDirectory)/**/coverage.cobertura.xml"
+      summaryFileLocation: "$(Agent.TempDirectory)/**/coverage.cobertura.xml"
 
   - task: DotNetCoreCLI@2
     displayName: "dotnet pack"
