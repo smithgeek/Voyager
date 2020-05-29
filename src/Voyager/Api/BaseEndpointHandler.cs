@@ -12,18 +12,18 @@ namespace Voyager.Api
 	public abstract class BaseEndpointHandler<TRequest, TActionResult> : IRequestHandler<TRequest, TActionResult>, InjectEndpointProps
 		where TRequest : IRequest<TActionResult>
 	{
-		IAuthorizationService InjectEndpointProps.AuthorizationService { get; set; }
-		IHttpContextAccessor InjectEndpointProps.HttpContextAccessor { get; set; }
-		IEnumerable<string> InjectEndpointProps.PolicyNames { get; set; }
+		public IAuthorizationService AuthorizationService { get; set; }
+		public IHttpContextAccessor HttpContextAccessor { get; set; }
+		public IEnumerable<string> PolicyNames { get; set; }
 
 		public ClaimsPrincipal GetUser()
 		{
-			return ((InjectEndpointProps)this).HttpContextAccessor.HttpContext.User;
+			return HttpContextAccessor.HttpContext.User;
 		}
 
 		public async Task<TActionResult> Handle(TRequest request, CancellationToken cancellationToken)
 		{
-			var policyNames = ((InjectEndpointProps)this).PolicyNames;
+			var policyNames = PolicyNames;
 			if (!policyNames.Any())
 			{
 				return await HandleRequestInternal(request, cancellationToken);
@@ -33,11 +33,11 @@ namespace Voyager.Api
 				AuthorizationResult result;
 				if (request is ResourceRequest resourceRequest)
 				{
-					result = await ((InjectEndpointProps)this).AuthorizationService.AuthorizeAsync(((InjectEndpointProps)this).HttpContextAccessor.HttpContext.User, resourceRequest.GetResource(), policyName);
+					result = await AuthorizationService.AuthorizeAsync(HttpContextAccessor.HttpContext.User, resourceRequest.GetResource(), policyName);
 				}
 				else
 				{
-					result = await ((InjectEndpointProps)this).AuthorizationService.AuthorizeAsync(((InjectEndpointProps)this).HttpContextAccessor.HttpContext.User, policyName);
+					result = await AuthorizationService.AuthorizeAsync(HttpContextAccessor.HttpContext.User, policyName);
 				}
 				if (!result.Succeeded)
 				{

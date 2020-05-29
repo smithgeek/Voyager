@@ -204,18 +204,32 @@ namespace Voyager
 		{
 			var policies = implementationType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
 			var policyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
-			services.TryAddScoped(implementationType, p =>
+			var constructor = implementationType.GetConstructors().FirstOrDefault(ctor => ctor.GetParameters().All(p => services.Any(s => p.ParameterType == s.ServiceType)));
+			if (constructor == null)
 			{
-				var instance = Activator.CreateInstance(implementationType);
-				var injectable = ((InjectEndpointProps)instance);
-				injectable.HttpContextAccessor = p.GetService<IHttpContextAccessor>();
-				injectable.AuthorizationService = p.GetService<IAuthorizationService>();
+				throw new Exception($"Could not find a constructor for type {implementationType.Name} that can be constructed using the provided services.");
+			}
+			var constructorParams = constructor.GetParameters();
+			services.TryAddScoped(implementationType, provider =>
+			{
+				object instance;
+				if (constructorParams.Length > 0)
+				{
+					instance = constructor.Invoke(constructorParams.Select(param => provider.GetRequiredService(param.ParameterType)).ToArray());
+				}
+				else
+				{
+					instance = Activator.CreateInstance(implementationType);
+				}
+				var injectable = (InjectEndpointProps)instance;
+				injectable.HttpContextAccessor = provider.GetService<IHttpContextAccessor>();
+				injectable.AuthorizationService = provider.GetService<IAuthorizationService>();
 				injectable.PolicyNames = policyNames;
 				return instance;
 			});
 			services.TryAddScoped(interfaceType, p =>
 			{
-				return p.GetService(implementationType);
+				return p.GetRequiredService(implementationType);
 			});
 		}
 

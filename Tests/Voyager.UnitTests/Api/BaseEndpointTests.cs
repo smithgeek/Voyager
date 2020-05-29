@@ -37,7 +37,7 @@ namespace Voyager.UnitTests.Api
 			response.Result.Should().BeUnauthorizedResult();
 		}
 
-		private TEndpoint GetEndpoint<TEndpoint>()
+		private TEndpoint GetEndpoint<TEndpoint>() where TEndpoint : InjectEndpointProps
 		{
 			var services = new ServiceCollection();
 			services.AddVoyager(c => c.AddAssemblyWith<BaseEndpointTests>());
@@ -47,16 +47,11 @@ namespace Voyager.UnitTests.Api
 			return endpoint;
 		}
 
-		public class AnonymousEndpoint : BaseEndpointHandler<AnonymousRequest, ActionResult<int>>, Enforce<AnonymousPolicy>, Enforce<BlankPolicy>
+		public class AnonymousEndpoint : EndpointHandler<AnonymousRequest, int>, Enforce<AnonymousPolicy>, Enforce<BlankPolicy>
 		{
-			internal override ActionResult<int> GetUnathorizedResponse()
+			public override ActionResult<int> HandleRequest(AnonymousRequest request)
 			{
-				return new UnauthorizedResult();
-			}
-
-			internal override Task<ActionResult<int>> HandleRequestInternal(AnonymousRequest request, CancellationToken cancellation)
-			{
-				return Task.FromResult<ActionResult<int>>(3);
+				return 3;
 			}
 		}
 
@@ -64,16 +59,11 @@ namespace Voyager.UnitTests.Api
 		{
 		}
 
-		public class AuthenticatedEndpoint : BaseEndpointHandler<AuthenticatedRequest, ActionResult<int>>, Enforce<AuthenticatedPolicy>
+		public class AuthenticatedEndpoint : EndpointHandler<AuthenticatedRequest, int>, Enforce<AuthenticatedPolicy>
 		{
-			internal override ActionResult<int> GetUnathorizedResponse()
+			public override ActionResult<int> HandleRequest(AuthenticatedRequest request)
 			{
-				return new UnauthorizedResult();
-			}
-
-			internal override Task<ActionResult<int>> HandleRequestInternal(AuthenticatedRequest request, CancellationToken cancellation)
-			{
-				return Task.FromResult<ActionResult<int>>(3);
+				return 3;
 			}
 		}
 
@@ -81,16 +71,19 @@ namespace Voyager.UnitTests.Api
 		{
 		}
 
-		public class NoPolicyEndpoint : BaseEndpointHandler<NoPolicyRequest, ActionResult<int>>
+		public class NoPolicyEndpoint : EndpointHandler<NoPolicyRequest, int>
 		{
-			internal override ActionResult<int> GetUnathorizedResponse()
+			public NoPolicyEndpoint(int value)
 			{
-				return new UnauthorizedResult();
 			}
 
-			internal override Task<ActionResult<int>> HandleRequestInternal(NoPolicyRequest request, CancellationToken cancellation)
+			public NoPolicyEndpoint(IHttpContextAccessor httpContextAccessor)
 			{
-				return Task.FromResult<ActionResult<int>>(3);
+			}
+
+			public override ActionResult<int> HandleRequest(NoPolicyRequest request)
+			{
+				return 3;
 			}
 		}
 

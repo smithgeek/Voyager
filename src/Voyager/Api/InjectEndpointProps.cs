@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace Voyager.Api
 {
-	internal interface InjectEndpointProps
+	public interface InjectEndpointProps
 	{
 		IAuthorizationService AuthorizationService { get; set; }
 		IHttpContextAccessor HttpContextAccessor { get; set; }
