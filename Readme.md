@@ -3,6 +3,8 @@ An alternative routing system utilizing [Mediatr](https://github.com/jbogard/Med
 
 Easily create decoupled components for every route endpoint.
 
+[![Build Status](https://dev.azure.com/smithgeek/Voyager/_apis/build/status/smithgeek.Voyager?branchName=master)](https://dev.azure.com/smithgeek/Voyager/_build/latest?definitionId=14&branchName=master)
+
 ## Contents
 [Install](#Install)
 
@@ -30,6 +32,7 @@ or
 dotnet add package Voyager
 ```
 
+## Azure Functions Install
 If you're running in Azure Functions you'll also want to install
 ```
 Install-Package Voyager.Azure.Functions
@@ -194,7 +197,7 @@ public class ExampleRequestValidator : AbstractValidator<ExampleRequest>
 ```
 
 ## Policies
-Policy classes must implement the [Policy](Voyager/Api/Authorization/Policy.cs) interface which requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
+Policy classes must implement the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface which requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
 ```cs
 public class AuthenticatedPolicy : Policy
 {
