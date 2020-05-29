@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
@@ -46,14 +47,14 @@ namespace Voyager
 				services.AddLogging();
 			}
 
+			RegisterMediatorHandlers(services, builder.Assemblies);
+			RegisterMediatorRequests(services, builder.Assemblies);
+			AddCustomAuthorization(services, builder.Assemblies);
+
 			foreach (var assembly in builder.Assemblies)
 			{
 				services.AddMediatR(assembly);
 			}
-
-			RegisterMediatorHandlers(services, builder.Assemblies);
-			RegisterMediatorRequests(services, builder.Assemblies);
-			AddCustomAuthorization(services, builder.Assemblies);
 		}
 
 		internal static IEnumerable<Type> GetAllTypesImplementingType(Type openGenericType, Assembly assembly)
@@ -78,16 +79,30 @@ namespace Voyager
 					var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
 					if (interfaceType != null && !type.IsAbstract)
 					{
-						var name = type.Name;
+						var isInjectable = type.GetInterfaces().Any(i => i == typeof(InjectEndpointProps));
 						if (type.IsGenericType)
 						{
-							services.AddScoped(type.GetGenericTypeDefinition());
-							services.TryAddScoped(interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
+							if (isInjectable)
+							{
+								RegisterInjectableEndpoint(services, interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
+							}
+							else
+							{
+								services.AddScoped(type.GetGenericTypeDefinition());
+								services.TryAddScoped(interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
+							}
 						}
 						else
 						{
-							services.AddScoped(type);
-							services.TryAddScoped(interfaceType, type);
+							if (isInjectable)
+							{
+								RegisterInjectableEndpoint(services, interfaceType, type);
+							}
+							else
+							{
+								services.AddScoped(type);
+								services.TryAddScoped(interfaceType, type);
+							}
 						}
 					}
 				}
@@ -183,6 +198,25 @@ namespace Voyager
 					}
 				}
 			}
+		}
+
+		private static void RegisterInjectableEndpoint(IServiceCollection services, Type interfaceType, Type implementationType)
+		{
+			var policies = implementationType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
+			var policyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
+			services.TryAddScoped(implementationType, p =>
+			{
+				var instance = Activator.CreateInstance(implementationType);
+				var injectable = ((InjectEndpointProps)instance);
+				injectable.HttpContextAccessor = p.GetService<IHttpContextAccessor>();
+				injectable.AuthorizationService = p.GetService<IAuthorizationService>();
+				injectable.PolicyNames = policyNames;
+				return instance;
+			});
+			services.TryAddScoped(interfaceType, p =>
+			{
+				return p.GetService(implementationType);
+			});
 		}
 
 		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.

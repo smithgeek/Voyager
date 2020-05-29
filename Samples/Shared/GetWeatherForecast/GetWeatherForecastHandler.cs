@@ -1,24 +1,17 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using Voyager.Api;
-using Voyager.Api.Authorization;
 
 namespace Shared.GetWeatherForecast
 {
-	public class GetWeatherForecastHandler : EndpointHandler<GetWeatherForecastRequest, IEnumerable<GetWeatherForecastResponse>, AnonymousPolicy>
+	public class GetWeatherForecastHandler : EndpointHandler<GetWeatherForecastRequest, IEnumerable<GetWeatherForecastResponse>>
 	{
 		private static readonly string[] Summaries = new[]
 		{
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
-
-		public GetWeatherForecastHandler(IHttpContextAccessor httpContextAccessor)
-			: base(httpContextAccessor)
-		{
-		}
 
 		public override ActionResult<IEnumerable<GetWeatherForecastResponse>> HandleRequest(GetWeatherForecastRequest request)
 		{

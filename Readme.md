@@ -136,12 +136,6 @@ public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>
 }
 ```
 
-Authentication is performed by passing a type that implements the [Policy](#Policies) interface to the EndpointHandler. If no policy is provided it will default to the Anonymous policy.
-```cs
-public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest, AnonymousPolicy>
-```
-
-
 If you want to have a strongly typed return value you can do that too!
 ```cs
 public class GetVoyagerInfoResponse
@@ -154,7 +148,7 @@ public class GetVoyagerInfoRequest : EndpointRequest<GetVoyagerInfoResponse>
 {
 }
 
-public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest, GetVoyagerInfoResponse, AnonymousPolicy>
+public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest, GetVoyagerInfoResponse>
 {
     public override ActionResult<GetVoyagerInfoResponse> HandleRequest(GetVoyagerInfoRequest request)
     {
@@ -197,7 +191,9 @@ public class ExampleRequestValidator : AbstractValidator<ExampleRequest>
 ```
 
 ## Policies
-Policy classes must implement the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface which requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
+Authentication is handled by the IAuthorizationService (using standard AspNet core [Requirements](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#requirements) and [Handlers](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#authorization-handlers)).
+
+Requirements are grouped together into policies. You can make your own policies by creating a class that implements the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface. The interface requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
 ```cs
 public class AuthenticatedPolicy : Policy
 {
@@ -208,6 +204,16 @@ public class AuthenticatedPolicy : Policy
             new AuthenticatedRequirement(),
         };
     }
+}
+```
+
+Voyager provides an [AnonymousPolicy](src/Voyager/Api/Authorization/AnonymousPolicy.cs) and [AuthenticatedPolicy](src/Voyager/Api/Authorization/AuthenticatedPolicy.cs) for you. If you don't specify a policy, anyone can access the endpoint.
+
+You apply a policy by adding the [Enforce](src/Voyager/Api/Authorization/Enforce.cs) interface and providing a policy.
+```cs
+public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>, Enforce<AuthenticatedPolicy>
+{
+    ...
 }
 ```
 

@@ -1,31 +1,14 @@
 ﻿using MediatR;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Voyager.Api.Authorization;
 
 namespace Voyager.Api
 {
-	abstract public class EndpointHandler<TRequest> : EndpointHandler<TRequest, AnonymousPolicy>
+	abstract public class EndpointHandler<TRequest> : BaseEndpointHandler<TRequest, IActionResult>
 		where TRequest : IRequest<IActionResult>
 	{
-		public EndpointHandler(IHttpContextAccessor httpContextAccessor)
-		: base(httpContextAccessor)
-		{
-		}
-	}
-
-	abstract public class EndpointHandler<TRequest, TPolicy> : BaseEndpointHandler<TRequest, IActionResult, TPolicy>
-		where TRequest : IRequest<IActionResult>
-		where TPolicy : Policy
-	{
-		public EndpointHandler(IHttpContextAccessor httpContextAccessor)
-			: base(httpContextAccessor)
-		{
-		}
-
 		public virtual IActionResult HandleRequest(TRequest request)
 		{
 			throw new NotImplementedException();
@@ -87,15 +70,9 @@ namespace Voyager.Api
 		}
 	}
 
-	abstract public class EndpointHandler<TRequest, TResponse, TPolicy> : BaseEndpointHandler<TRequest, ActionResult<TResponse>, TPolicy>
+	abstract public class EndpointHandler<TRequest, TResponse> : BaseEndpointHandler<TRequest, ActionResult<TResponse>>
 		where TRequest : IRequest<ActionResult<TResponse>>
-		where TPolicy : Policy
 	{
-		public EndpointHandler(IHttpContextAccessor httpContextAccessor)
-			: base(httpContextAccessor)
-		{
-		}
-
 		public virtual ActionResult<TResponse> HandleRequest(TRequest request)
 		{
 			throw new NotImplementedException();
