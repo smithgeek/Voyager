@@ -45,6 +45,7 @@ namespace Voyager
 				services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 				services.AddValidatorsFromAssemblies(builder.Assemblies);
 				services.AddLogging();
+				services.AddSingleton<TypeBindingRepository>();
 			}
 
 			RegisterMediatorHandlers(services, builder.Assemblies);

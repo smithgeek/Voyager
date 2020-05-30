@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
 using System;
 using System.Collections.Generic;
@@ -13,10 +14,12 @@ namespace Voyager.Api
 	public class DefaultModelBinder : ModelBinder
 	{
 		private readonly PropertySetterFactory propertySetterFactory;
+		private readonly TypeBindingRepository typeBindingRepo;
 
-		public DefaultModelBinder(PropertySetterFactory propertySetterFactory)
+		public DefaultModelBinder(PropertySetterFactory propertySetterFactory, TypeBindingRepository typeBindingRepo)
 		{
 			this.propertySetterFactory = propertySetterFactory;
+			this.typeBindingRepo = typeBindingRepo;
 		}
 
 		public async Task<TRequest> Bind<TRequest>(HttpContext context)
@@ -40,69 +43,54 @@ namespace Voyager.Api
 			var routeParams = context.Request.RouteValues;
 			var queryString = context.Request.Query;
 			var form = context.Request.HasFormContentType ? context.Request.Form : null;
-			foreach (var property in returnType.GetProperties())
+			foreach (var property in typeBindingRepo.GetProperties(returnType))
 			{
-				var fromRoute = property.GetCustomAttribute<FromRouteAttribute>();
-				if (fromRoute != null)
+				if (property.BindingSource == BindingSource.Path)
 				{
-					GetFromRoute(mediatorRequest, routeParams, property, fromRoute);
+					GetFromRoute(mediatorRequest, routeParams, property);
+					continue;
 				}
-				else
+				if (property.BindingSource == BindingSource.Query)
 				{
-					var fromQuery = property.GetCustomAttribute<FromQueryAttribute>();
-					if (fromQuery != null)
-					{
-						GetFromQuery(mediatorRequest, queryString, property, fromQuery);
-					}
-					else if (form != null)
-					{
-						GetFromForm(mediatorRequest, form, property);
-					}
+					GetFromQuery(mediatorRequest, queryString, property);
+					continue;
+				}
+				if (form != null && property.BindingSource == BindingSource.Form)
+				{
+					GetFromForm(mediatorRequest, form, property);
 				}
 			}
 			return mediatorRequest;
 		}
 
-		private string GetCamelCase(string value)
+		private void GetFromForm<TRequest>(TRequest mediatorRequest, IFormCollection form, BoundProperty property)
 		{
-			return char.ToLower(value[0]) + value.Substring(1);
-		}
-
-		private void GetFromForm<TRequest>(TRequest mediatorRequest, IFormCollection form, PropertyInfo property)
-		{
-			var fromForm = property.GetCustomAttribute<FromFormAttribute>();
-			if (fromForm != null)
+			if (typeof(IEnumerable<IFormFile>).IsAssignableFrom(property.Property.PropertyType))
 			{
-				if (typeof(IEnumerable<IFormFile>).IsAssignableFrom(property.PropertyType))
+				property.Property.SetValue(mediatorRequest, form.Files ?? (IFormFileCollection)new List<IFormFile>());
+			}
+			else
+			{
+				if (form.ContainsKey(property.Name))
 				{
-					property.SetValue(mediatorRequest, form.Files ?? (IFormFileCollection)new List<IFormFile>());
-				}
-				else
-				{
-					var name = fromForm.Name ?? GetCamelCase(property.Name);
-					if (form.ContainsKey(name))
-					{
-						GetSetter(property).SetValue(property, mediatorRequest, form[name].ToString());
-					}
+					GetSetter(property.Property).SetValue(property.Property, mediatorRequest, form[property.Name].ToString());
 				}
 			}
 		}
 
-		private void GetFromQuery<TRequest>(TRequest mediatorRequest, IQueryCollection queryString, PropertyInfo property, FromQueryAttribute fromQuery)
+		private void GetFromQuery<TRequest>(TRequest mediatorRequest, IQueryCollection queryString, BoundProperty property)
 		{
-			var name = fromQuery.Name ?? GetCamelCase(property.Name);
-			if (queryString.ContainsKey(name))
+			if (queryString.ContainsKey(property.Name))
 			{
-				GetSetter(property).SetValue(property, mediatorRequest, queryString[name].ToString());
+				GetSetter(property.Property).SetValue(property.Property, mediatorRequest, queryString[property.Name].ToString());
 			}
 		}
 
-		private void GetFromRoute<TRequest>(TRequest mediatorRequest, RouteValueDictionary routeParams, PropertyInfo property, FromRouteAttribute fromRoute)
+		private void GetFromRoute<TRequest>(TRequest mediatorRequest, RouteValueDictionary routeParams, BoundProperty property)
 		{
-			var name = fromRoute.Name ?? GetCamelCase(property.Name);
-			if (routeParams.ContainsKey(name))
+			if (routeParams.ContainsKey(property.Name))
 			{
-				GetSetter(property).SetValue(property, mediatorRequest, routeParams[name].ToString());
+				GetSetter(property.Property).SetValue(property.Property, mediatorRequest, routeParams[property.Name].ToString());
 			}
 		}
 
