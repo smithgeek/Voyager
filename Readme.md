@@ -5,6 +5,8 @@ Easily create decoupled components for every route endpoint.
 
 [![Build Status](https://dev.azure.com/smithgeek/Voyager/_apis/build/status/smithgeek.Voyager?branchName=master)](https://dev.azure.com/smithgeek/Voyager/_build/latest?definitionId=14&branchName=master)
 
+Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
+
 ## Contents
 [Install](#Install)
 
