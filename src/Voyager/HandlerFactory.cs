@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -24,8 +25,8 @@ namespace Voyager
 		{
 			var instance = provider.GetRequiredService<THandler>();
 			var injectable = (InjectEndpointProps)instance;
-			injectable.HttpContextAccessor = provider.GetService<IHttpContextAccessor>();
-			injectable.AuthorizationService = provider.GetService<IAuthorizationService>();
+			injectable.HttpContextAccessor = provider.GetRequiredService<IHttpContextAccessor>();
+			injectable.AuthorizationService = provider.GetRequiredService<IAuthorizationService>();
 			injectable.PolicyNames = policyNames;
 			return instance;
 		}
