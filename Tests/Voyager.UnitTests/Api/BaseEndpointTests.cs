@@ -3,6 +3,7 @@ using FluentAssertions.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Voyager.Api;
@@ -13,10 +14,21 @@ namespace Voyager.UnitTests.Api
 {
 	public class BaseEndpointTests
 	{
+		private readonly IServiceProvider provider;
+
+		public BaseEndpointTests()
+		{
+			var services = new ServiceCollection();
+			services.AddVoyager(c => c.AddAssemblyWith<BaseEndpointTests>());
+			provider = services.BuildServiceProvider();
+		}
+
 		[Fact]
 		public async Task AnonymousPolicyAllowsAnyone()
 		{
-			var endpoint = GetEndpoint<AnonymousEndpoint>();
+			var scope = provider.CreateScope();
+			var endpoint = GetEndpoint<AnonymousEndpoint>(scope.ServiceProvider);
+			var endpoint2 = GetEndpoint<AnonymousEndpoint>();
 			var response = await endpoint.Handle(new AnonymousRequest(), CancellationToken.None);
 			response.Value.Should().Be(3);
 		}
@@ -37,13 +49,11 @@ namespace Voyager.UnitTests.Api
 			response.Result.Should().BeUnauthorizedResult();
 		}
 
-		private TEndpoint GetEndpoint<TEndpoint>() where TEndpoint : InjectEndpointProps
+		private TEndpoint GetEndpoint<TEndpoint>(IServiceProvider scopeProvider = null) where TEndpoint : InjectEndpointProps
 		{
-			var services = new ServiceCollection();
-			services.AddVoyager(c => c.AddAssemblyWith<BaseEndpointTests>());
-			var provider = services.BuildServiceProvider();
-			var endpoint = provider.GetService<TEndpoint>();
-			provider.GetService<IHttpContextAccessor>().HttpContext = TestFactory.HttpContext();
+			var useProvider = scopeProvider ?? provider;
+			var endpoint = useProvider.GetService<HandlerFactory<TEndpoint>>().Create();
+			useProvider.GetService<IHttpContextAccessor>().HttpContext = TestFactory.HttpContext();
 			return endpoint;
 		}
 

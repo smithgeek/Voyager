@@ -1,7 +1,6 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
@@ -205,32 +204,17 @@ namespace Voyager
 		{
 			var policies = implementationType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
 			var policyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
-			var constructor = implementationType.GetConstructors().FirstOrDefault(ctor => ctor.GetParameters().All(p => services.Any(s => p.ParameterType == s.ServiceType)));
-			if (constructor == null)
+
+			var factoryType = typeof(HandlerFactory<>).MakeGenericType(implementationType);
+			services.TryAddScoped(implementationType);
+			services.TryAddScoped(factoryType, (provider) =>
 			{
-				throw new Exception($"Could not find a constructor for type {implementationType.Name} that can be constructed using the provided services.");
-			}
-			var constructorParams = constructor.GetParameters();
-			services.TryAddScoped(implementationType, provider =>
-			{
-				object instance;
-				if (constructorParams.Length > 0)
-				{
-					instance = constructor.Invoke(constructorParams.Select(param => provider.GetRequiredService(param.ParameterType)).ToArray());
-				}
-				else
-				{
-					instance = Activator.CreateInstance(implementationType);
-				}
-				var injectable = (InjectEndpointProps)instance;
-				injectable.HttpContextAccessor = provider.GetService<IHttpContextAccessor>();
-				injectable.AuthorizationService = provider.GetService<IAuthorizationService>();
-				injectable.PolicyNames = policyNames;
-				return instance;
+				return Activator.CreateInstance(factoryType, provider, policyNames);
 			});
 			services.TryAddScoped(interfaceType, p =>
 			{
-				return p.GetRequiredService(implementationType);
+				var factory = (IHandlerFactory)p.GetRequiredService(factoryType);
+				return factory.CreateInstance();
 			});
 		}
 

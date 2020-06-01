@@ -4,7 +4,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Shared;
-using System.Linq;
 using Voyager;
 
 namespace SampleApi
@@ -43,8 +42,6 @@ namespace SampleApi
 		// This method gets called by the runtime. Use this method to add services to the container.
 		public void ConfigureServices(IServiceCollection services)
 		{
-			var section = Configuration.GetSection("Voyager");
-			var cs = section.GetChildren().ToList();
 			services.AddControllers();
 			services.AddVoyager(c =>
 			{

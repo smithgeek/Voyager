@@ -20,7 +20,7 @@ Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
 
 [Validation](#Validation)
 
-[Policies](#Policies)
+[Authorization](#Authorization)
 
 [Azure Functions Forwarder](#Azure-Functions-Forwarder)
 
@@ -192,8 +192,8 @@ public class ExampleRequestValidator : AbstractValidator<ExampleRequest>
 }
 ```
 
-## Policies
-Authentication is handled by the IAuthorizationService (using standard AspNet core [Requirements](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#requirements) and [Handlers](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#authorization-handlers)).
+## Authorization
+Authorization is handled by the IAuthorizationService (using standard AspNet core [Requirements](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#requirements) and [Handlers](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#authorization-handlers)).
 
 Requirements are grouped together into policies. You can make your own policies by creating a class that implements the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface. The interface requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
 ```cs

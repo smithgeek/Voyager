@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 using Shared.GetWeatherForecast;
 using System;
 using System.Collections.Generic;
@@ -16,19 +15,14 @@ namespace SampleApi.Controllers
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
 
-		private readonly ILogger<WeatherForecastController> _logger;
-
-		public WeatherForecastController(ILogger<WeatherForecastController> logger)
-		{
-			_logger = logger;
-		}
-
 		[HttpGet]
-		public IEnumerable<GetWeatherForecastResponse> Get()
+		[Route("{city}")]
+		public IEnumerable<GetWeatherForecastResponse> Get([FromRoute] string city, [FromQuery(Name = "d")] int days = 5)
 		{
 			var rng = new Random();
-			return Enumerable.Range(1, 5).Select(index => new GetWeatherForecastResponse
+			return Enumerable.Range(1, days).Select(index => new GetWeatherForecastResponse
 			{
+				City = city,
 				Date = DateTime.Now.AddDays(index),
 				TemperatureC = rng.Next(-20, 55),
 				Summary = Summaries[rng.Next(Summaries.Length)]
