@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System;
@@ -27,7 +28,8 @@ namespace Voyager
 			if (!isRegistered)
 			{
 				services.AddScoped<IsRegistered>();
-				services.AddMvcCore();
+				services.AddMvcCore().AddApiExplorer();
+				services.TryAddEnumerable(ServiceDescriptor.Transient<IApiDescriptionProvider, VoyagerApiDescriptionProvider>());
 				services.AddSingleton<ExceptionHandler, DefaultExceptionHandler>();
 				var voyagerConfig = new VoyagerConfiguration
 				{

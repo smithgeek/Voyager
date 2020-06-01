@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.OpenApi.Models;
 using Shared;
 using Voyager;
 
@@ -29,7 +30,11 @@ namespace SampleApi
 
 			app.UseVoyagerRouting();
 			app.UseRouting();
-
+			app.UseSwagger();
+			app.UseSwaggerUI(c =>
+			{
+				c.SwaggerEndpoint("/swagger/v1/swagger.json", "API V1");
+			});
 			app.UseAuthorization();
 			app.UseMiddleware<SampleMiddleware>();
 			app.UseEndpoints(endpoints =>
@@ -47,6 +52,11 @@ namespace SampleApi
 			{
 				c.AddAssemblyWith<Startup>();
 				c.AddAssemblyWith<SampleMiddleware>();
+			});
+
+			services.AddSwaggerGen(c =>
+			{
+				c.SwaggerDoc("v1", new OpenApiInfo { Title = "Api", Version = "v1" });
 			});
 		}
 	}
