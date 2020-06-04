@@ -8,6 +8,8 @@ Easily create decoupled components for every route endpoint.
 Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
 
 ## Contents
+[Breaking Changes](#Breaking-Changes)
+
 [Install](#Install)
 
 [Getting Started](#Getting-Started)
@@ -23,6 +25,10 @@ Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
 [Authorization](#Authorization)
 
 [Azure Functions Forwarder](#Azure-Functions-Forwarder)
+
+## Breaking Changes
+### 0.3.0
+`UseVoyagerRouting()` and `UseVoyagerEndpoints()` have been removed. Instead you should use `UseRouting` and `UseEndpoints` and then configure your endpoints by adding `endpoints.MapVoyager()`. See the [Getting Started](#Getting-Started) section below for an example.
 
 ## Install
 You should install using nuget
@@ -57,7 +63,7 @@ public void ConfigureServices(IServiceCollection services)
 }
 ```
 
-You will also need to add `UseVoyagerRouting` and `UseVoyagerEndpoints` to your `Configure` method. It is recommended to add `UseVoyagerExceptionHandler` as well. An example of a configure method is
+You will also need to add `endpoints.MapVoyager();` in your UseEndpoints configuration. Voyager also provides an exception handler middleware. However, this middleware is not required to use Voyager. An example of a configure method is
 ```cs
 public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
 {
@@ -68,20 +74,17 @@ public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
     app.UseVoyagerExceptionHandler();
     app.UseHttpsRedirection();
 
-    app.UseVoyagerRouting();
     app.UseRouting();
 
     app.UseAuthorization();
     app.UseMiddleware<SampleMiddleware>();
     app.UseEndpoints(endpoints =>
     {
+		endpoints.MapVoyager();
         endpoints.MapControllers();
     });
-    app.UseVoyagerEndpoints();
 }
 ```
-
-If you are only using Voyager routing you can remove `UseRouting` and `UseEndpoints`. 
 
 
 ## Azure Functions Setup
@@ -98,9 +101,12 @@ public class Startup : FunctionsStartup
     {
         app.UsePathBase("/api");
         app.UseVoyagerExceptionHandler();
-        app.UseVoyagerRouting();
+        app.UseRouting();
         app.UseMiddleware<SampleMiddleware>();
-        app.UseVoyagerEndpoints();
+        app.UseEndpoints(endpoints => 
+		{
+			endpoints.MapVoyager();
+		})
     }
 
     public override void Configure(IFunctionsHostBuilder builder)

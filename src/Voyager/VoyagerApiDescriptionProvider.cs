@@ -15,9 +15,9 @@ namespace Voyager
 	{
 		private readonly IModelMetadataProvider modelMetadataProvider;
 		private readonly TypeBindingRepository typeBindingRepo;
-		private readonly IEnumerable<EndpointRoute> voyagerRoutes;
+		private readonly IEnumerable<VoyagerRoute> voyagerRoutes;
 
-		public VoyagerApiDescriptionProvider(IEnumerable<EndpointRoute> voyagerRoutes, IModelMetadataProvider modelMetadataProvider, TypeBindingRepository typeBindingRepo)
+		public VoyagerApiDescriptionProvider(IEnumerable<VoyagerRoute> voyagerRoutes, IModelMetadataProvider modelMetadataProvider, TypeBindingRepository typeBindingRepo)
 		{
 			this.voyagerRoutes = voyagerRoutes;
 			this.modelMetadataProvider = modelMetadataProvider;

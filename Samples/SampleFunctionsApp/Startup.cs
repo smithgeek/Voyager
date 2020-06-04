@@ -2,6 +2,7 @@
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi.Models;
 using Shared;
 using System.Linq;
 using Voyager;
@@ -21,9 +22,18 @@ namespace SampleFunctionsApp
 		{
 			app.UsePathBase("/api");
 			app.UseVoyagerExceptionHandler();
-			app.UseVoyagerRouting();
+			app.UseRouting();
+			app.UseSwagger();
+			app.UseSwaggerUI(c =>
+			{
+				c.SwaggerEndpoint("/api/swagger/v1/swagger.json", "API V1");
+			});
 			app.UseMiddleware<SampleMiddleware>();
-			app.UseVoyagerEndpoints();
+			app.UseEndpoints(endpoints =>
+			{
+				endpoints.MapVoyager();
+				endpoints.MapControllers();
+			});
 		}
 
 		public override void Configure(IFunctionsHostBuilder builder)
@@ -40,6 +50,11 @@ namespace SampleFunctionsApp
 			{
 				c.AddAssemblyWith<Startup>();
 				c.AddAssemblyWith<SampleMiddleware>();
+			});
+
+			services.AddSwaggerGen(c =>
+			{
+				c.SwaggerDoc("v1", new OpenApiInfo { Title = "Api", Version = "v1" });
 			});
 		}
 	}

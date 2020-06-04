@@ -28,7 +28,6 @@ namespace SampleApi
 			app.UseVoyagerExceptionHandler();
 			app.UseHttpsRedirection();
 
-			app.UseVoyagerRouting();
 			app.UseRouting();
 			app.UseSwagger();
 			app.UseSwaggerUI(c =>
@@ -39,9 +38,9 @@ namespace SampleApi
 			app.UseMiddleware<SampleMiddleware>();
 			app.UseEndpoints(endpoints =>
 			{
+				endpoints.MapVoyager();
 				endpoints.MapControllers();
 			});
-			app.UseVoyagerEndpoints();
 		}
 
 		// This method gets called by the runtime. Use this method to add services to the container.

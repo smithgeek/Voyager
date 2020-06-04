@@ -9,7 +9,7 @@ namespace Voyager.Api
 	abstract public class EndpointHandler<TRequest> : IEndpointHandler<TRequest>
 			where TRequest : IRequest<IActionResult>
 	{
-		public Task<IActionResult> Handle(TRequest request, CancellationToken cancellation)
+		public virtual Task<IActionResult> Handle(TRequest request, CancellationToken cancellation)
 		{
 			return HandleRequestAsync(request, cancellation);
 		}
@@ -68,7 +68,7 @@ namespace Voyager.Api
 	abstract public class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
-		public Task<ActionResult<TResponse>> Handle(TRequest request, CancellationToken cancellation)
+		public virtual Task<ActionResult<TResponse>> Handle(TRequest request, CancellationToken cancellation)
 		{
 			return HandleRequestAsync(request, cancellation);
 		}

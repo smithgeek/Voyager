@@ -1,6 +1,4 @@
-﻿using Microsoft.AspNetCore.Routing;
-using Microsoft.AspNetCore.Routing.Template;
-using System;
+﻿using System;
 
 namespace Voyager.Api
 {
@@ -15,45 +13,21 @@ namespace Voyager.Api
 		public RouteAttribute(string method, string template)
 		{
 			Template = template;
-			TemplateMatcher = GetTemplateMatcher(template);
 			Method = method.ToUpperInvariant();
 		}
 
 		public string Method { get; }
 
 		public string Template { get; set; }
-		public TemplateMatcher TemplateMatcher { get; }
 
-		public EndpointRoute ToEndpointRoute(Type type)
+		public VoyagerRoute ToEndpointRoute(Type type)
 		{
-			return new EndpointRoute
+			return new VoyagerRoute
 			{
 				Method = Method,
-				TemplateMatcher = TemplateMatcher,
 				RequestType = type,
 				Template = Template
 			};
-		}
-
-		private static RouteValueDictionary GetDefaults(RouteTemplate parsedTemplate)
-		{
-			var result = new RouteValueDictionary();
-
-			foreach (var parameter in parsedTemplate.Parameters)
-			{
-				if (parameter.DefaultValue != null)
-				{
-					result.Add(parameter.Name, parameter.DefaultValue);
-				}
-			}
-
-			return result;
-		}
-
-		private TemplateMatcher GetTemplateMatcher(string templateString)
-		{
-			var template = TemplateParser.Parse(templateString);
-			return new TemplateMatcher(template, GetDefaults(template));
 		}
 	}
 }

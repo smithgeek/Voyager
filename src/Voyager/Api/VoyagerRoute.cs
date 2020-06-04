@@ -1,13 +1,11 @@
-﻿using Microsoft.AspNetCore.Routing.Template;
-using System;
+﻿using System;
 
 namespace Voyager.Api
 {
-	public class EndpointRoute
+	public class VoyagerRoute
 	{
 		public string Method { get; set; }
 		public Type RequestType { get; set; }
-		public TemplateMatcher TemplateMatcher { get; set; }
 		public string Template { get; set; }
 	}
 }
