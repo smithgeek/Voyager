@@ -6,9 +6,14 @@ using System.Threading.Tasks;
 
 namespace Voyager.Api
 {
-	abstract public class EndpointHandler<TRequest> : BaseEndpointHandler<TRequest, IActionResult>
-		where TRequest : IRequest<IActionResult>
+	abstract public class EndpointHandler<TRequest> : IEndpointHandler<TRequest>
+			where TRequest : IRequest<IActionResult>
 	{
+		public Task<IActionResult> Handle(TRequest request, CancellationToken cancellation)
+		{
+			return HandleRequestAsync(request, cancellation);
+		}
+
 		public virtual IActionResult HandleRequest(TRequest request)
 		{
 			throw new NotImplementedException();
@@ -22,16 +27,6 @@ namespace Voyager.Api
 		public virtual Task<IActionResult> HandleRequestAsync(TRequest request)
 		{
 			return Task.FromResult(HandleRequest(request));
-		}
-
-		internal override IActionResult GetUnathorizedResponse()
-		{
-			return new UnauthorizedResult();
-		}
-
-		internal override Task<IActionResult> HandleRequestInternal(TRequest request, CancellationToken cancellation)
-		{
-			return HandleRequestAsync(request, cancellation);
 		}
 
 		protected IActionResult BadRequest()
@@ -70,9 +65,14 @@ namespace Voyager.Api
 		}
 	}
 
-	abstract public class EndpointHandler<TRequest, TResponse> : BaseEndpointHandler<TRequest, ActionResult<TResponse>>
+	abstract public class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
+		public Task<ActionResult<TResponse>> Handle(TRequest request, CancellationToken cancellation)
+		{
+			return HandleRequestAsync(request, cancellation);
+		}
+
 		public virtual ActionResult<TResponse> HandleRequest(TRequest request)
 		{
 			throw new NotImplementedException();
@@ -86,16 +86,6 @@ namespace Voyager.Api
 		public virtual Task<ActionResult<TResponse>> HandleRequestAsync(TRequest request)
 		{
 			return Task.FromResult(HandleRequest(request));
-		}
-
-		internal override ActionResult<TResponse> GetUnathorizedResponse()
-		{
-			return new UnauthorizedResult();
-		}
-
-		internal override Task<ActionResult<TResponse>> HandleRequestInternal(TRequest request, CancellationToken cancellation)
-		{
-			return HandleRequestAsync(request, cancellation);
 		}
 
 		protected ActionResult<TResponse> BadRequest()

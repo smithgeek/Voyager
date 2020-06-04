@@ -137,6 +137,7 @@ public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>
     }
 }
 ```
+The EndpointHandler provides some convenience methods that you might be use to from controller classes (like Ok(), BadRequest(), etc.). If you prefer not to inherit from the base class you can also just implement the `IEndpointHandler` interface.
 
 If you want to have a strongly typed return value you can do that too!
 ```cs

@@ -81,30 +81,17 @@ namespace Voyager
 					var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
 					if (interfaceType != null && !type.IsAbstract)
 					{
-						var isInjectable = type.GetInterfaces().Any(i => i == typeof(InjectEndpointProps));
+						RegisterAuthroziationBehavior(services, type, interfaceType);
+
 						if (type.IsGenericType)
 						{
-							if (isInjectable)
-							{
-								RegisterInjectableEndpoint(services, interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
-							}
-							else
-							{
-								services.AddScoped(type.GetGenericTypeDefinition());
-								services.TryAddScoped(interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
-							}
+							services.AddScoped(type.GetGenericTypeDefinition());
+							services.TryAddScoped(interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
 						}
 						else
 						{
-							if (isInjectable)
-							{
-								RegisterInjectableEndpoint(services, interfaceType, type);
-							}
-							else
-							{
-								services.AddScoped(type);
-								services.TryAddScoped(interfaceType, type);
-							}
+							services.AddScoped(type);
+							services.TryAddScoped(interfaceType, type);
 						}
 					}
 				}
@@ -202,22 +189,37 @@ namespace Voyager
 			}
 		}
 
-		private static void RegisterInjectableEndpoint(IServiceCollection services, Type interfaceType, Type implementationType)
+		private static void RegisterAuthroziationBehavior(IServiceCollection services, Type type, Type interfaceType)
 		{
-			var policies = implementationType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
-			var policyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
-
-			var factoryType = typeof(HandlerFactory<>).MakeGenericType(implementationType);
-			services.TryAddScoped(implementationType);
-			services.TryAddScoped(factoryType, (provider) =>
+			var policies = type.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
+			if (policies.Any())
 			{
-				return Activator.CreateInstance(factoryType, provider, policyNames);
-			});
-			services.TryAddScoped(interfaceType, p =>
-			{
-				var factory = (IHandlerFactory)p.GetRequiredService(factoryType);
-				return factory.CreateInstance();
-			});
+				var requestResponseTypes = interfaceType.GetGenericArguments();
+				var requestType = requestResponseTypes[0];
+				var responseType = requestResponseTypes[1];
+				var handlerPoliciesType = typeof(HandlerPolicies<,>).MakeGenericType(requestType, responseType);
+				services.TryAddScoped(handlerPoliciesType, provider =>
+				{
+					var policyList = (PolicyList)Activator.CreateInstance(handlerPoliciesType);
+					policyList.PolicyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
+					return policyList;
+				});
+				if (typeof(Microsoft.AspNetCore.Mvc.IActionResult).IsAssignableFrom(responseType))
+				{
+					services.TryAddScoped(typeof(UnauthorizedResponseFactory<>).MakeGenericType(responseType), typeof(IActionResultUnauthorizedResponseFactory<>).MakeGenericType(responseType));
+				}
+				else if (typeof(Microsoft.AspNetCore.Mvc.ActionResult<>).IsAssignableFrom(responseType.GetGenericTypeDefinition()))
+				{
+					services.TryAddScoped(typeof(UnauthorizedResponseFactory<>).MakeGenericType(responseType),
+						typeof(ActionResultUnauthorizedResponseFactory<>).MakeGenericType(responseType.GetGenericArguments()[0]));
+				}
+				else
+				{
+					throw new Exception($"Unknown response type: {responseType.FullName}. unable to return an unauthorized response");
+				}
+				services.TryAddScoped(typeof(IPipelineBehavior<,>).MakeGenericType(requestType, responseType),
+					typeof(AuthorizationBehavior<,>).MakeGenericType(requestType, responseType));
+			}
 		}
 
 		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.
