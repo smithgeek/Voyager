@@ -200,9 +200,18 @@ public class ExampleRequestValidator : AbstractValidator<ExampleRequest>
 ```
 
 ## Authorization
-Authorization is handled by the IAuthorizationService (using standard AspNet core [Requirements](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#requirements) and [Handlers](https://docs.microsoft.com/en-us/aspnet/core/security/authorization/policies?view=aspnetcore-3.1#authorization-handlers)).
+You can use the same authorization attributes that you use with MVC.
+```cs
+[Authorize(Policy = "MyPolicy")]
+public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>, Enforce<AuthenticatedPolicy>
+{
+    ...
+}
+```
 
-Requirements are grouped together into policies. You can make your own policies by creating a class that implements the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface. The interface requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
+Voyager also provides an alternative way to create and apply policies while still using standard ASP.NET requirements and handlers. It provides type safety instead of relying on strings.
+
+You can make your own policies by creating a class that implements the [Policy](src/Voyager/Api/Authorization/Policy.cs) interface. The interface requires a single GetRequirements function that returns a list of all the requirements that must be satisfied. Returning an empty list is allowed.
 ```cs
 public class AuthenticatedPolicy : Policy
 {

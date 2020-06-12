@@ -81,8 +81,6 @@ namespace Voyager
 					var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
 					if (interfaceType != null && !type.IsAbstract)
 					{
-						RegisterAuthroziationBehavior(services, type, interfaceType);
-
 						if (type.IsGenericType)
 						{
 							services.AddScoped(type.GetGenericTypeDefinition());
@@ -186,39 +184,6 @@ namespace Voyager
 						}
 					}
 				}
-			}
-		}
-
-		private static void RegisterAuthroziationBehavior(IServiceCollection services, Type type, Type interfaceType)
-		{
-			var policies = type.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
-			if (policies.Any())
-			{
-				var requestResponseTypes = interfaceType.GetGenericArguments();
-				var requestType = requestResponseTypes[0];
-				var responseType = requestResponseTypes[1];
-				var handlerPoliciesType = typeof(HandlerPolicies<,>).MakeGenericType(requestType, responseType);
-				services.TryAddScoped(handlerPoliciesType, provider =>
-				{
-					var policyList = (PolicyList)Activator.CreateInstance(handlerPoliciesType);
-					policyList.PolicyNames = policies.Select(p => p.GetGenericArguments()[0].FullName);
-					return policyList;
-				});
-				if (typeof(Microsoft.AspNetCore.Mvc.IActionResult).IsAssignableFrom(responseType))
-				{
-					services.TryAddScoped(typeof(UnauthorizedResponseFactory<>).MakeGenericType(responseType), typeof(IActionResultUnauthorizedResponseFactory<>).MakeGenericType(responseType));
-				}
-				else if (typeof(Microsoft.AspNetCore.Mvc.ActionResult<>).IsAssignableFrom(responseType.GetGenericTypeDefinition()))
-				{
-					services.TryAddScoped(typeof(UnauthorizedResponseFactory<>).MakeGenericType(responseType),
-						typeof(ActionResultUnauthorizedResponseFactory<>).MakeGenericType(responseType.GetGenericArguments()[0]));
-				}
-				else
-				{
-					throw new Exception($"Unknown response type: {responseType.FullName}. unable to return an unauthorized response");
-				}
-				services.TryAddScoped(typeof(IPipelineBehavior<,>).MakeGenericType(requestType, responseType),
-					typeof(AuthorizationBehavior<,>).MakeGenericType(requestType, responseType));
 			}
 		}
 

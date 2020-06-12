@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Routing.Patterns;
@@ -6,9 +7,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Primitives;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Voyager.Api;
+using Voyager.Api.Authorization;
 
 namespace Voyager
 {
@@ -39,7 +42,17 @@ namespace Voyager
 				{
 					var builder = new RouteEndpointBuilder(c => Route(voyagerRoute.RequestType, c), RoutePatternFactory.Parse(voyagerRoute.Template), 0);
 					builder.Metadata.Add(new HttpMethodMetadata(new[] { voyagerRoute.Method }));
-					endpoints.Add(builder.Build());
+					foreach (var attribute in voyagerRoute.RequestType.GetCustomAttributes(false))
+					{
+						builder.Metadata.Add(attribute);
+					}
+					var policies = voyagerRoute.RequestType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
+					foreach (var policy in policies.Select(p => p.GetGenericArguments()[0].FullName))
+					{
+						builder.Metadata.Add(new AuthorizeAttribute(policy));
+					}
+					var endpoint = builder.Build();
+					endpoints.Add(endpoint);
 				}
 				return endpoints;
 			}
