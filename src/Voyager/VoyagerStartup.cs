@@ -42,13 +42,13 @@ namespace Voyager
 				services.AddScoped<AppRouter>();
 				services.TryAddSingleton<ModelBinder, DefaultModelBinder>();
 				services.TryAddTransient<PropertySetterFactory, DefaultPropertySetterFactory>();
-				AddPropertySetters(services, builder.Assemblies);
 				services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
-				services.AddValidatorsFromAssemblies(builder.Assemblies);
 				services.AddLogging();
 				services.AddSingleton<TypeBindingRepository>();
 			}
 
+			AddPropertySetters(services, builder.Assemblies);
+			services.AddValidatorsFromAssemblies(builder.Assemblies);
 			RegisterMediatorHandlers(services, builder.Assemblies);
 			RegisterMediatorRequests(services, builder.Assemblies);
 			AddCustomAuthorization(services, builder.Assemblies);
