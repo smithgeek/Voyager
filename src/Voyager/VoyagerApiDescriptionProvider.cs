@@ -5,8 +5,6 @@ using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
-using System.Reflection.Emit;
 using Voyager.Api;
 
 namespace Voyager
@@ -56,13 +54,16 @@ namespace Voyager
 				}
 
 				var requestBodyType = typeProvider.CreateBodyType(route.RequestType);
-				var requestModel = modelMetadataProvider.GetMetadataForType(requestBodyType);
-				descriptor.ParameterDescriptions.Add(new ApiParameterDescription
+				if (requestBodyType != null)
 				{
-					Type = requestBodyType,
-					Source = BindingSource.Body,
-					ModelMetadata = requestModel
-				});
+					var requestModel = modelMetadataProvider.GetMetadataForType(requestBodyType);
+					descriptor.ParameterDescriptions.Add(new ApiParameterDescription
+					{
+						Type = requestBodyType,
+						Source = BindingSource.Body,
+						ModelMetadata = requestModel
+					});
+				}
 				descriptor.ActionDescriptor.RouteValues["controller"] = GetTopRoute(route.Template);
 				descriptor.SupportedRequestFormats.Add(new ApiRequestFormat { MediaType = "application/json" });
 				var responseType = GetResponseType(route.RequestType);
@@ -102,77 +103,6 @@ namespace Voyager
 				return template.Substring(0, template.IndexOf('/'));
 			}
 			return template;
-		}
-	}
-
-	internal class DynamicTypeBuilder
-	{
-		private readonly ModuleBuilder moduleBuilder;
-		private readonly TypeBindingRepository typeBindingRepo;
-
-		public DynamicTypeBuilder(TypeBindingRepository typeBindingRepo)
-		{
-			this.typeBindingRepo = typeBindingRepo;
-			var assemblyName = new AssemblyName("Voyager.OpenApi.Types");
-			var assemblyBuilder = AssemblyBuilder.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.Run);
-			moduleBuilder = assemblyBuilder.DefineDynamicModule("Types");
-		}
-
-		public Type CreateBodyType(Type type)
-		{
-			var typeBuilder = GetRequestBodyTypeBuilder(type);
-			typeBuilder.DefineDefaultConstructor(MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName);
-			foreach (var property in typeBindingRepo.GetProperties(type))
-			{
-				if (property.BindingSource == BindingSource.Body)
-				{
-					CreateProperty(typeBuilder, property.Name, property.Property.PropertyType);
-				}
-			}
-			return typeBuilder.CreateTypeInfo().AsType();
-		}
-
-		private static void CreateProperty(TypeBuilder tb, string propertyName, Type propertyType)
-		{
-			var fieldBuilder = tb.DefineField("_" + propertyName, propertyType, FieldAttributes.Private);
-
-			var propertyBuilder = tb.DefineProperty(propertyName, PropertyAttributes.HasDefault, propertyType, null);
-			var getPropMthdBldr = tb.DefineMethod("get_" + propertyName, MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.HideBySig, propertyType, Type.EmptyTypes);
-			var getIl = getPropMthdBldr.GetILGenerator();
-
-			getIl.Emit(OpCodes.Ldarg_0);
-			getIl.Emit(OpCodes.Ldfld, fieldBuilder);
-			getIl.Emit(OpCodes.Ret);
-
-			var setPropMthdBldr =
-				tb.DefineMethod("set_" + propertyName,
-				  MethodAttributes.Public |
-				  MethodAttributes.SpecialName |
-				  MethodAttributes.HideBySig,
-				  null, new[] { propertyType });
-
-			var setIl = setPropMthdBldr.GetILGenerator();
-			var modifyProperty = setIl.DefineLabel();
-			var exitSet = setIl.DefineLabel();
-
-			setIl.MarkLabel(modifyProperty);
-			setIl.Emit(OpCodes.Ldarg_0);
-			setIl.Emit(OpCodes.Ldarg_1);
-			setIl.Emit(OpCodes.Stfld, fieldBuilder);
-
-			setIl.Emit(OpCodes.Nop);
-			setIl.MarkLabel(exitSet);
-			setIl.Emit(OpCodes.Ret);
-
-			propertyBuilder.SetGetMethod(getPropMthdBldr);
-			propertyBuilder.SetSetMethod(setPropMthdBldr);
-		}
-
-		private TypeBuilder GetRequestBodyTypeBuilder(Type type)
-		{
-			var typeSignature = $"{type.Name}RequestBody";
-			var typeBuilder = moduleBuilder.DefineType(typeSignature, TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.AutoClass | TypeAttributes.AnsiClass | TypeAttributes.BeforeFieldInit | TypeAttributes.AutoLayout, null);
-			return typeBuilder;
 		}
 	}
 }

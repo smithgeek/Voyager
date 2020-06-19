@@ -12,6 +12,10 @@ namespace Voyager.Api
 
 		public RouteAttribute(string method, string template)
 		{
+			if (template.StartsWith("/"))
+			{
+				template = template.Substring(1);
+			}
 			Template = template;
 			Method = method.ToUpperInvariant();
 		}
