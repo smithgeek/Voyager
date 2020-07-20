@@ -17,6 +17,11 @@ namespace Voyager.SetProperties
 			{
 				return (SetPropertyValue)serviceProvider.GetService(typeof(EnumSetPropertyValue<>).MakeGenericType(propertyType));
 			}
+			var underlyingType = Nullable.GetUnderlyingType(propertyType);
+			if (underlyingType != null)
+			{
+				return (SetPropertyValue)serviceProvider.GetService(typeof(SetPropertyValue<>).MakeGenericType(underlyingType));
+			}
 			return (SetPropertyValue)serviceProvider.GetService(typeof(SetPropertyValue<>).MakeGenericType(propertyType));
 		}
 	}
