@@ -39,7 +39,6 @@ namespace Voyager
 				services.AddSingleton(voyagerConfig);
 				builder.AddAssemblyWith<VoyagerConfigurationBuilder>();
 				services.AddHttpContextAccessor();
-				services.AddScoped<AppRouter>();
 				services.TryAddSingleton<ModelBinder, DefaultModelBinder>();
 				services.TryAddTransient<PropertySetterFactory, DefaultPropertySetterFactory>();
 				services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
@@ -50,7 +49,7 @@ namespace Voyager
 			AddPropertySetters(services, builder.Assemblies);
 			services.AddValidatorsFromAssemblies(builder.Assemblies);
 			RegisterMediatorHandlers(services, builder.Assemblies);
-			RegisterMediatorRequests(services, builder.Assemblies);
+			RegisterVoyagerRoutes(services, builder.Assemblies);
 			AddCustomAuthorization(services, builder.Assemblies);
 
 			foreach (var assembly in builder.Assemblies)
@@ -96,7 +95,7 @@ namespace Voyager
 			}
 		}
 
-		internal static void RegisterMediatorRequests(IServiceCollection services, IEnumerable<Assembly> assemblies)
+		internal static void RegisterVoyagerRoutes(IServiceCollection services, IEnumerable<Assembly> assemblies)
 		{
 			foreach (var assembly in assemblies)
 			{
@@ -104,14 +103,6 @@ namespace Voyager
 				{
 					if (!type.IsInterface && !type.IsAbstract)
 					{
-						if (type.IsGenericType)
-						{
-							services.AddScoped(type.GetGenericTypeDefinition());
-						}
-						else
-						{
-							services.AddScoped(type);
-						}
 						var routeAttributes = type.GetCustomAttributes<RouteAttribute>();
 						foreach (var routeAttribute in routeAttributes)
 						{

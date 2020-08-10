@@ -44,6 +44,21 @@ namespace Voyager.Api
 			return BadRequest(await details);
 		}
 
+		protected IActionResult NotFound()
+		{
+			return new NotFoundResult();
+		}
+
+		protected IActionResult NotFound(ProblemDetails details)
+		{
+			return new NotFoundObjectResult(details);
+		}
+
+		protected async Task<IActionResult> NotFound(Task<ProblemDetails> details)
+		{
+			return NotFound(await details);
+		}
+
 		protected IActionResult Ok()
 		{
 			return new OkResult();

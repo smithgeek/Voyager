@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
@@ -9,13 +10,16 @@ namespace Voyager.Middleware
 	{
 		private readonly IEnumerable<ExceptionHandlerConfigurator> configurators;
 		private readonly ExceptionHandler exceptionHandler;
+		private readonly ILogger<VoyagerExceptionHandlerMiddleware> logger;
 		private readonly RequestDelegate next;
 
-		public VoyagerExceptionHandlerMiddleware(RequestDelegate next, ExceptionHandler exceptionHandler, IEnumerable<ExceptionHandlerConfigurator> configurators)
+		public VoyagerExceptionHandlerMiddleware(RequestDelegate next,
+			ExceptionHandler exceptionHandler, IEnumerable<ExceptionHandlerConfigurator> configurators, ILogger<VoyagerExceptionHandlerMiddleware> logger)
 		{
 			this.next = next;
 			this.exceptionHandler = exceptionHandler;
 			this.configurators = configurators;
+			this.logger = logger;
 		}
 
 		public async Task InvokeAsync(HttpContext context)
@@ -26,6 +30,7 @@ namespace Voyager.Middleware
 			}
 			catch (Exception e)
 			{
+				logger.LogError(e, e.Message);
 				foreach (var configurator in configurators)
 				{
 					configurator.Configure();
