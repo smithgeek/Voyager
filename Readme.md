@@ -203,7 +203,7 @@ public class ExampleRequestValidator : AbstractValidator<ExampleRequest>
 You can use the same authorization attributes that you use with MVC.
 ```cs
 [Authorize(Policy = "MyPolicy")]
-public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>, Enforce<AuthenticatedPolicy>
+public class GetVoyagerInfoRequest : EndpointRequest
 {
     ...
 }
@@ -229,7 +229,7 @@ Voyager provides an [AnonymousPolicy](src/Voyager/Api/Authorization/AnonymousPol
 
 You apply a policy by adding the [Enforce](src/Voyager/Api/Authorization/Enforce.cs) interface and providing a policy.
 ```cs
-public class GetVoyagerInfoHandler : EndpointHandler<GetVoyagerInfoRequest>, Enforce<AuthenticatedPolicy>
+public class GetVoyagerInfoRequest : EndpointRequest, Enforce<AuthenticatedPolicy>
 {
     ...
 }
