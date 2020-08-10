@@ -1,5 +1,6 @@
 ﻿using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using System;
 using System.Threading.Tasks;
 using Voyager.Middleware;
@@ -13,7 +14,7 @@ namespace Voyager.UnitTests.Middleware
 		public async Task ConfiguratorIsCalled()
 		{
 			var configurator = new TestExceptionConfigurator();
-			var middleware = new VoyagerExceptionHandlerMiddleware((context) => throw new Exception("Error"), new NullExceptionHandler(), new[] { configurator });
+			var middleware = new VoyagerExceptionHandlerMiddleware((context) => throw new Exception("Error"), new NullExceptionHandler(), new[] { configurator }, new NullLogger<VoyagerExceptionHandlerMiddleware>());
 			await middleware.InvokeAsync(TestFactory.HttpContext());
 			configurator.CalledCount.Should().Be(1);
 		}
