@@ -71,6 +71,33 @@ namespace Voyager
 				   select x;
 		}
 
+		internal static IEnumerable<PolicyDefinition> GetPolicies(IEnumerable<Assembly> assemblies)
+		{
+			var policies = new Dictionary<string, PolicyDefinition>();
+			foreach (var assembly in assemblies)
+			{
+				foreach (var policyType in assembly.GetTypes().Where(t => !t.IsInterface && typeof(Policy).IsAssignableFrom(t)))
+				{
+					var name = policyType.FullName;
+					var overrideType = policyType.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(OverridePolicy<>));
+					if (overrideType != null)
+					{
+						name = overrideType.GetGenericArguments()[0].FullName;
+					}
+					if (policies.ContainsKey(name) && overrideType == null)
+					{
+						continue;
+					}
+					policies[name] = new PolicyDefinition
+					{
+						Policy = (Policy)Activator.CreateInstance(policyType),
+						Name = name
+					};
+				}
+			}
+			return policies.Values;
+		}
+
 		internal static void RegisterMediatorHandlers(IServiceCollection services, IEnumerable<Assembly> assemblies)
 		{
 			foreach (var assembly in assemblies)
@@ -115,30 +142,22 @@ namespace Voyager
 
 		private static void AddCustomAuthorization(IServiceCollection services, IEnumerable<Assembly> assemblies)
 		{
-			var policies = new List<Policy>();
-			foreach (var assembly in assemblies)
-			{
-				foreach (var policyType in assembly.GetTypes().Where(t => !t.IsInterface && typeof(Policy).IsAssignableFrom(t)))
-				{
-					services.AddScoped(policyType);
-					policies.Add((Policy)Activator.CreateInstance(policyType));
-				}
-			}
+			var policyDefinitions = GetPolicies(assemblies);
 
 			services.AddAuthorizationCore(options =>
 			{
-				foreach (var policy in policies)
+				foreach (var definition in policyDefinitions)
 				{
-					options.AddPolicy(policy.GetType().FullName, policyBuilder =>
+					options.AddPolicy(definition.Name, policyBuilder =>
 					{
-						var requirements = policy.GetRequirements();
+						var requirements = definition.Policy.GetRequirements();
 						if (requirements is null || requirements.Count == 0)
 						{
 							policyBuilder.RequireAssertion(c => { return true; });
 						}
 						else
 						{
-							policyBuilder.Requirements = policy.GetRequirements();
+							policyBuilder.Requirements = requirements;
 						}
 					});
 				}
@@ -176,6 +195,12 @@ namespace Voyager
 					}
 				}
 			}
+		}
+
+		internal class PolicyDefinition
+		{
+			public string Name { get; set; }
+			public Policy Policy { get; set; }
 		}
 
 		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.
