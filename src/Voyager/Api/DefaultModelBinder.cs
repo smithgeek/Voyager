@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,13 +15,15 @@ namespace Voyager.Api
 {
 	public class DefaultModelBinder : ModelBinder
 	{
+		private readonly IOptions<JsonOptions> jsonOptions;
 		private readonly PropertySetterFactory propertySetterFactory;
 		private readonly TypeBindingRepository typeBindingRepo;
 
-		public DefaultModelBinder(PropertySetterFactory propertySetterFactory, TypeBindingRepository typeBindingRepo)
+		public DefaultModelBinder(PropertySetterFactory propertySetterFactory, TypeBindingRepository typeBindingRepo, IOptions<JsonOptions> jsonOptions)
 		{
 			this.propertySetterFactory = propertySetterFactory;
 			this.typeBindingRepo = typeBindingRepo;
+			this.jsonOptions = jsonOptions;
 		}
 
 		public async Task<TRequest> Bind<TRequest>(HttpContext context)
@@ -111,7 +115,8 @@ namespace Voyager.Api
 			{
 				return Activator.CreateInstance(returnType);
 			}
-			return JsonSerializer.Deserialize(body, returnType, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
+			jsonOptions.Value.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+			return JsonSerializer.Deserialize(body, returnType, jsonOptions.Value.JsonSerializerOptions);
 		}
 	}
 }
