@@ -8,6 +8,7 @@
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="MediatR" Version="8.0.1" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="5.4.1" />
+		<ProjectReference Include="..\..\src\Voyager.Swashbuckle\Voyager.Swashbuckle.csproj" />
 		<ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
 	</ItemGroup>
 </Project>

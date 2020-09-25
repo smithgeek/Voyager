@@ -8,6 +8,12 @@ namespace Voyager.Configuration
 	{
 		internal List<Assembly> Assemblies { get; set; } = new List<Assembly>();
 
+		public VoyagerConfigurationBuilder AddAssembly(Assembly assembly)
+		{
+			Assemblies.Add(assembly);
+			return this;
+		}
+
 		public VoyagerConfigurationBuilder AddAssemblyWith<Type>()
 		{
 			return AddAssemblyWith(typeof(Type));
@@ -15,8 +21,7 @@ namespace Voyager.Configuration
 
 		public VoyagerConfigurationBuilder AddAssemblyWith(Type type)
 		{
-			Assemblies.Add(type.Assembly);
-			return this;
+			return AddAssembly(type.Assembly);
 		}
 	}
 }

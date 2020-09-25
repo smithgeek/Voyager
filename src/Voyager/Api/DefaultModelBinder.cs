@@ -1,29 +1,26 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
-using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
-using System.Reflection;
 using System.Text.Json;
 using System.Threading.Tasks;
-using Voyager.SetProperties;
 
 namespace Voyager.Api
 {
 	public class DefaultModelBinder : ModelBinder
 	{
 		private readonly IOptions<JsonOptions> jsonOptions;
-		private readonly PropertySetterFactory propertySetterFactory;
 		private readonly TypeBindingRepository typeBindingRepo;
 
-		public DefaultModelBinder(PropertySetterFactory propertySetterFactory, TypeBindingRepository typeBindingRepo, IOptions<JsonOptions> jsonOptions)
+		public DefaultModelBinder(TypeBindingRepository typeBindingRepo, IOptionsSnapshot<JsonOptions> jsonOptions)
 		{
-			this.propertySetterFactory = propertySetterFactory;
 			this.typeBindingRepo = typeBindingRepo;
 			this.jsonOptions = jsonOptions;
+			jsonOptions.Value.JsonSerializerOptions.MaxDepth = 0;
 		}
 
 		public async Task<TRequest> Bind<TRequest>(HttpContext context)
@@ -43,80 +40,83 @@ namespace Voyager.Api
 
 		private async Task<object> BindInternal(HttpContext context, Type returnType)
 		{
-			var mediatorRequest = await ParseBody(context, returnType);
-			var routeParams = context.Request.RouteValues;
-			var queryString = context.Request.Query;
-			var form = context.Request.HasFormContentType ? context.Request.Form : null;
-			foreach (var property in typeBindingRepo.GetProperties(returnType))
+			var mediatorRequest = Activator.CreateInstance(returnType);
+			var routeProvider = new RouteValueProvider(BindingSource.Path, context.Request.RouteValues);
+			var queryProvider = new QueryStringValueProvider(BindingSource.Query, context.Request.Query, CultureInfo.InvariantCulture);
+			var compositeValueProvider = new CompositeValueProvider
+			{
+				routeProvider,
+				queryProvider
+			};
+			IValueProvider formProvider = null;
+			var bodyProvider = new JsonBodyValueProvider(await ParseBody(context));
+			if (context.Request.HasFormContentType)
+			{
+				formProvider = new FormValueProvider(BindingSource.Form, context.Request.Form, CultureInfo.CurrentCulture); ;
+				compositeValueProvider.Add(formProvider);
+			}
+			else
+			{
+				compositeValueProvider.Add(bodyProvider);
+			}
+
+			IValueProvider GetProvider(BoundProperty property)
 			{
 				if (property.BindingSource == BindingSource.Path)
 				{
-					GetFromRoute(mediatorRequest, routeParams, property);
-					continue;
+					return routeProvider;
 				}
-				if (property.BindingSource == BindingSource.Query)
+				else if (property.BindingSource == BindingSource.Query)
 				{
-					GetFromQuery(mediatorRequest, queryString, property);
-					continue;
+					return queryProvider;
 				}
-				if (form != null && property.BindingSource == BindingSource.Form)
+				else if (property.BindingSource == BindingSource.Form)
 				{
-					GetFromForm(mediatorRequest, form, property);
+					return formProvider;
+				}
+				else if (property.BindingSource == BindingSource.Body)
+				{
+					return bodyProvider;
+				}
+				return compositeValueProvider;
+			}
+
+			foreach (var property in typeBindingRepo.GetProperties(returnType))
+			{
+				var valueProvider = GetProvider(property);
+				if (valueProvider != null)
+				{
+					var value = valueProvider.GetValue(property.Name);
+					if (value.FirstValue != null)
+					{
+						if (property.Property.PropertyType == typeof(string))
+						{
+							property.Property.SetValue(mediatorRequest, value.FirstValue);
+						}
+						else
+						{
+							var v = JsonSerializer.Deserialize(value.FirstValue, property.Property.PropertyType, jsonOptions.Value.JsonSerializerOptions);
+							property.Property.SetValue(mediatorRequest, v);
+						}
+					}
 				}
 			}
 			return mediatorRequest;
 		}
 
-		private void GetFromForm<TRequest>(TRequest mediatorRequest, IFormCollection form, BoundProperty property)
-		{
-			if (typeof(IEnumerable<IFormFile>).IsAssignableFrom(property.Property.PropertyType))
-			{
-				property.Property.SetValue(mediatorRequest, form.Files ?? (IFormFileCollection)new List<IFormFile>());
-			}
-			else
-			{
-				if (form.ContainsKey(property.Name))
-				{
-					GetSetter(property.Property).SetValue(property.Property, mediatorRequest, form[property.Name].ToString());
-				}
-			}
-		}
-
-		private void GetFromQuery<TRequest>(TRequest mediatorRequest, IQueryCollection queryString, BoundProperty property)
-		{
-			if (queryString.ContainsKey(property.Name))
-			{
-				GetSetter(property.Property).SetValue(property.Property, mediatorRequest, queryString[property.Name].ToString());
-			}
-		}
-
-		private void GetFromRoute<TRequest>(TRequest mediatorRequest, RouteValueDictionary routeParams, BoundProperty property)
-		{
-			if (routeParams.ContainsKey(property.Name))
-			{
-				GetSetter(property.Property).SetValue(property.Property, mediatorRequest, routeParams[property.Name].ToString());
-			}
-		}
-
-		private SetPropertyValue GetSetter(PropertyInfo property)
-		{
-			return propertySetterFactory.Get(property.PropertyType);
-		}
-
-		private async Task<object> ParseBody(HttpContext context, Type returnType)
+		private async Task<Dictionary<string, object>> ParseBody(HttpContext context)
 		{
 			if (context.Request.HasFormContentType)
 			{
-				return Activator.CreateInstance(returnType);
+				return new Dictionary<string, object>();
 			}
 			using var reader = new StreamReader(context.Request.Body);
 			var body = await reader.ReadToEndAsync();
 			if (string.IsNullOrWhiteSpace(body))
 			{
-				return Activator.CreateInstance(returnType);
+				return new Dictionary<string, object>();
 			}
-			jsonOptions.Value.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-			return JsonSerializer.Deserialize(body, returnType, jsonOptions.Value.JsonSerializerOptions);
+			return JsonSerializer.Deserialize<Dictionary<string, object>>(body, jsonOptions.Value.JsonSerializerOptions);
 		}
 	}
 }

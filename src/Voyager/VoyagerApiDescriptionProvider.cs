@@ -1,5 +1,6 @@
 ﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System;
@@ -9,7 +10,13 @@ using Voyager.Api;
 
 namespace Voyager
 {
-	public class VoyagerApiDescriptionProvider : IApiDescriptionProvider
+	public class OpenApiMetadata
+	{
+		public string AssemblyName { get; set; }
+		public string TypeFullName { get; set; }
+	}
+
+	internal class VoyagerApiDescriptionProvider : IApiDescriptionProvider
 	{
 		private readonly IModelMetadataProvider modelMetadataProvider;
 		private readonly TypeBindingRepository typeBindingRepo;
@@ -29,6 +36,7 @@ namespace Voyager
 			var typeProvider = new DynamicTypeBuilder(typeBindingRepo);
 			foreach (var route in voyagerRoutes)
 			{
+				var path = $"{route.Template}";
 				var descriptor = new ApiDescription
 				{
 					HttpMethod = route.Method,
@@ -36,7 +44,7 @@ namespace Voyager
 					{
 						RouteValues = new Dictionary<string, string>()
 					},
-					RelativePath = route.Template,
+					RelativePath = path,
 				};
 				var validBindingSources = new[] { BindingSource.Form, BindingSource.Query, BindingSource.Path };
 				foreach (var property in typeBindingRepo.GetProperties(route.RequestType))
@@ -64,14 +72,22 @@ namespace Voyager
 						ModelMetadata = requestModel
 					});
 				}
-				descriptor.ActionDescriptor.RouteValues["controller"] = GetTopRoute(route.Template);
+				descriptor.ActionDescriptor.SetProperty(new OpenApiMetadata
+				{
+					AssemblyName = route.RequestType.Assembly.GetName().Name,
+					TypeFullName = route.RequestType.FullName
+				});
+				descriptor.ActionDescriptor.RouteValues["controller"] = GetTopRoute(path);
 				descriptor.SupportedRequestFormats.Add(new ApiRequestFormat { MediaType = "application/json" });
 				var responseType = GetResponseType(route.RequestType);
 				if (responseType != null)
 				{
-					var response = new ApiResponseType();
+					var response = new ApiResponseType
+					{
+						StatusCode = 200,
+						ModelMetadata = modelMetadataProvider.GetMetadataForType(responseType)
+					};
 					response.ApiResponseFormats.Add(new ApiResponseFormat { MediaType = "application/json" });
-					response.ModelMetadata = modelMetadataProvider.GetMetadataForType(responseType);
 					descriptor.SupportedResponseTypes.Add(response);
 				}
 				context.Results.Add(descriptor);

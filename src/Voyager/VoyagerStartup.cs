@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -9,12 +10,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Voyager.Api;
 using Voyager.Api.Authorization;
 using Voyager.Configuration;
 using Voyager.Mediatr;
 using Voyager.Middleware;
-using Voyager.SetProperties;
 
 [assembly: InternalsVisibleTo("Voyager.UnitTests")]
 
@@ -27,6 +29,7 @@ namespace Voyager
 			var isRegistered = services.Any(s => s.ImplementationType == typeof(IsRegistered));
 			if (!isRegistered)
 			{
+				services.AddSingleton<VoyagerOptionsHolder>();
 				services.AddScoped<IsRegistered>();
 				services.AddMvcCore().AddApiExplorer();
 				services.TryAddEnumerable(ServiceDescriptor.Transient<IApiDescriptionProvider, VoyagerApiDescriptionProvider>());
@@ -39,14 +42,13 @@ namespace Voyager
 				services.AddSingleton(voyagerConfig);
 				builder.AddAssemblyWith<VoyagerConfigurationBuilder>();
 				services.AddHttpContextAccessor();
-				services.TryAddSingleton<ModelBinder, DefaultModelBinder>();
-				services.TryAddTransient<PropertySetterFactory, DefaultPropertySetterFactory>();
+				services.TryAddTransient<ModelBinder, DefaultModelBinder>();
+				services.TryAddTransient<DefaultModelBinder>();
 				services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 				services.AddLogging();
 				services.AddSingleton<TypeBindingRepository>();
 			}
 
-			AddPropertySetters(services, builder.Assemblies);
 			services.AddValidatorsFromAssemblies(builder.Assemblies);
 			RegisterMediatorHandlers(services, builder.Assemblies);
 			RegisterVoyagerRoutes(services, builder.Assemblies);
@@ -105,12 +107,14 @@ namespace Voyager
 				foreach (var type in GetAllTypesImplementingType(typeof(IRequestHandler<,>), assembly))
 				{
 					var interfaceType = type.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequestHandler<,>));
-					if (interfaceType != null && !type.IsAbstract)
+					if (interfaceType != null && !type.IsGenericType && !type.IsAbstract && type != typeof(InjectHttpContextMediatorHandlerProxy<,,>))
 					{
-						if (type.IsGenericType)
+						if (typeof(IInjectHttpContext).IsAssignableFrom(type))
 						{
-							services.AddScoped(type.GetGenericTypeDefinition());
-							services.TryAddScoped(interfaceType.GetGenericTypeDefinition(), type.GetGenericTypeDefinition());
+							services.AddScoped(type);
+							var proxyType = typeof(InjectHttpContextMediatorHandlerProxy<,,>).MakeGenericType(new[] { type }
+								.Concat(interfaceType.GetGenericArguments()).ToArray());
+							services.TryAddScoped(interfaceType, proxyType);
 						}
 						else
 						{
@@ -171,29 +175,21 @@ namespace Voyager
 			}
 		}
 
-		private static void AddPropertySetters(IServiceCollection services, IEnumerable<Assembly> assemblies)
+		public class InjectHttpContextMediatorHandlerProxy<TImplementation, TRequest, TResponse> : IRequestHandler<TRequest, TResponse>
+			where TRequest : IRequest<TResponse>
+			where TImplementation : IInjectHttpContext, IRequestHandler<TRequest, TResponse>
 		{
-			foreach (var assembly in assemblies)
+			private readonly TImplementation handler;
+
+			public InjectHttpContextMediatorHandlerProxy(IHttpContextAccessor httpContextAccessor)
 			{
-				foreach (var type in assembly.GetTypes().Where(t => !t.IsInterface && !t.IsAbstract && typeof(SetPropertyValue).IsAssignableFrom(t)))
-				{
-					if (type.IsGenericType)
-					{
-						var serviceType = type.GetInterfaces().FirstOrDefault(i => i.IsGenericType);
-						if (serviceType != null)
-						{
-							services.TryAddSingleton(serviceType.GetGenericTypeDefinition(), type);
-						}
-					}
-					else
-					{
-						var serviceType = type.GetInterfaces().FirstOrDefault(i => typeof(SetPropertyValue<>) == i.GetGenericTypeDefinition());
-						if (serviceType != null)
-						{
-							services.TryAddSingleton(serviceType, type);
-						}
-					}
-				}
+				handler = (TImplementation)httpContextAccessor.HttpContext.RequestServices.GetRequiredService(typeof(TImplementation));
+				handler.HttpContext = httpContextAccessor.HttpContext;
+			}
+
+			public Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken)
+			{
+				return handler.Handle(request, cancellationToken);
 			}
 		}
 

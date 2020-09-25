@@ -9,22 +9,25 @@ namespace Shared
 	{
 		public static void ConfigureApp(IApplicationBuilder app)
 		{
-			app.UsePathBase("/api");
 			app.UseVoyagerExceptionHandler();
 			app.UseHttpsRedirection();
 
 			app.UseRouting();
 			app.UseAuthentication();
 			app.UseAuthorization();
-			app.UseSwagger();
+			app.UseSwagger(c =>
+			{
+				c.RouteTemplate = "docs/api/{documentName}/swagger.json";
+			});
 			app.UseSwaggerUI(c =>
 			{
-				c.SwaggerEndpoint("/api/swagger/v1/swagger.json", "API V1");
+				c.SwaggerEndpoint("/docs/api/v1/swagger.json", "API V1");
+				c.RoutePrefix = "docs/api";
 			});
 			app.UseMiddleware<SampleMiddleware>();
 			app.UseEndpoints(endpoints =>
 			{
-				endpoints.MapVoyager();
+				endpoints.MapVoyager(new VoyagerMapOptions { Prefix = "api" });
 				endpoints.MapControllers();
 			});
 		}
@@ -32,14 +35,12 @@ namespace Shared
 		public static void ConfigureServices(IServiceCollection services)
 		{
 			services.AddControllers();
-			services.AddVoyager(c =>
-			{
-				c.AddAssemblyWith<SampleMiddleware>();
-			});
+			services.AddVoyager();
 
 			services.AddSwaggerGen(c =>
 			{
-				c.SwaggerDoc("v1", new OpenApiInfo { Title = "Api", Version = "v1" });
+				c.SwaggerDoc("v1", new OpenApiInfo { Title = "Voyager Api", Version = "v1" });
+				c.AddVoyager();
 			});
 		}
 	}

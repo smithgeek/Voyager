@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,12 +15,14 @@ namespace Voyager.Middleware
 	public class DefaultExceptionHandler : ExceptionHandler
 	{
 		private readonly VoyagerConfiguration configuration;
+		private readonly IOptions<JsonOptions> jsonOptions;
 		private readonly ILogger<DefaultExceptionHandler> logger;
 
-		public DefaultExceptionHandler(VoyagerConfiguration configuration, ILogger<DefaultExceptionHandler> logger)
+		public DefaultExceptionHandler(VoyagerConfiguration configuration, ILogger<DefaultExceptionHandler> logger, IOptions<JsonOptions> jsonOptions)
 		{
 			this.configuration = configuration;
 			this.logger = logger;
+			this.jsonOptions = jsonOptions;
 		}
 
 		public IActionResult HandleException<TException>(TException exception) where TException : Exception
@@ -62,7 +65,7 @@ namespace Voyager.Middleware
 				return new ContentResult
 				{
 					StatusCode = (int)HttpStatusCode.InternalServerError,
-					Content = JsonSerializer.Serialize(problem, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }),
+					Content = JsonSerializer.Serialize(problem, jsonOptions.Value.JsonSerializerOptions),
 					ContentType = "application/json"
 				};
 			}

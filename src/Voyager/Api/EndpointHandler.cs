@@ -1,14 +1,20 @@
 ﻿using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Voyager.Api
 {
-	abstract public class EndpointHandler<TRequest> : IEndpointHandler<TRequest>
+	abstract public class EndpointHandler<TRequest> : IEndpointHandler<TRequest>, IInjectHttpContext
 			where TRequest : IRequest<IActionResult>
 	{
+		public virtual HttpContext HttpContext { get; set; }
+
+		public virtual ClaimsPrincipal User { get => HttpContext?.User; }
+
 		public virtual Task<IActionResult> Handle(TRequest request, CancellationToken cancellation)
 		{
 			return HandleRequestAsync(request, cancellation);
@@ -80,9 +86,13 @@ namespace Voyager.Api
 		}
 	}
 
-	abstract public class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>
+	abstract public class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>, IInjectHttpContext
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
+		public virtual HttpContext HttpContext { get; set; }
+
+		public virtual ClaimsPrincipal User { get => HttpContext?.User; }
+
 		public virtual Task<ActionResult<TResponse>> Handle(TRequest request, CancellationToken cancellation)
 		{
 			return HandleRequestAsync(request, cancellation);
@@ -120,12 +130,12 @@ namespace Voyager.Api
 
 		protected ActionResult<TResponse> Ok(TResponse response)
 		{
-			return response;
+			return new OkObjectResult(response);
 		}
 
 		protected async Task<ActionResult<TResponse>> Ok(Task<TResponse> response)
 		{
-			return await response;
+			return Ok(await response);
 		}
 
 		protected ActionResult<TResponse> Unauthorized()

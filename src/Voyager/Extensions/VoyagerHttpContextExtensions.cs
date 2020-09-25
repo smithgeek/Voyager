@@ -46,7 +46,12 @@ namespace Voyager
 				var resultDataType = actionResultMapper.GetResultDataType(response.GetType());
 				actionResult = actionResultMapper.Convert(response, resultDataType);
 			}
-			return actionResult.ExecuteResultAsync(new ActionContext(context, context.GetRouteData() ?? EmptyRouteData, EmptyActionDescriptor));
+			return actionResult.ExecuteResultAsync(context.CreateActionContext());
+		}
+
+		internal static ActionContext CreateActionContext(this HttpContext context)
+		{
+			return new ActionContext(context, context.GetRouteData() ?? EmptyRouteData, EmptyActionDescriptor);
 		}
 	}
 }
