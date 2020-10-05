@@ -2,7 +2,7 @@
 
 namespace Shared.TestEndpoint
 {
-	[Route(HttpMethod.Get, "/test")]
+	[VoyagerRoute(HttpMethod.Get, "/test")]
 	public class TestEndpointRequest : EndpointRequest<TestEndpointResponse>
 	{
 	}

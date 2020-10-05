@@ -87,15 +87,48 @@ namespace Voyager.Api
 				if (valueProvider != null)
 				{
 					var value = valueProvider.GetValue(property.Name);
+					var propType = property.Property.PropertyType;
 					if (value.FirstValue != null)
 					{
-						if (property.Property.PropertyType == typeof(string))
+						if (propType == typeof(string))
 						{
 							property.Property.SetValue(mediatorRequest, value.FirstValue);
 						}
+						else if (propType == typeof(bool))
+						{
+							property.Property.SetValue(mediatorRequest, Convert.ToBoolean(value.FirstValue));
+						}
+						else if (propType == typeof(char))
+						{
+							property.Property.SetValue(mediatorRequest, Convert.ToChar(value.FirstValue));
+						}
+						else if (propType == typeof(DateTime))
+						{
+							property.Property.SetValue(mediatorRequest, Convert.ToDateTime(value.FirstValue));
+						}
+						else if (propType == typeof(DateTimeOffset))
+						{
+							property.Property.SetValue(mediatorRequest, DateTimeOffset.Parse(value.FirstValue));
+						}
+						else if (propType == typeof(TimeSpan))
+						{
+							property.Property.SetValue(mediatorRequest, TimeSpan.Parse(value.FirstValue));
+						}
+						else if (propType == typeof(Uri))
+						{
+							property.Property.SetValue(mediatorRequest, new Uri(value.FirstValue));
+						}
+						else if (propType == typeof(Version))
+						{
+							property.Property.SetValue(mediatorRequest, new Version(value.FirstValue));
+						}
+						else if (propType == typeof(Guid))
+						{
+							property.Property.SetValue(mediatorRequest, Guid.Parse(value.FirstValue));
+						}
 						else
 						{
-							var v = JsonSerializer.Deserialize(value.FirstValue, property.Property.PropertyType, jsonOptions.Value.JsonSerializerOptions);
+							var v = JsonSerializer.Deserialize(value.FirstValue, propType, jsonOptions.Value.JsonSerializerOptions);
 							property.Property.SetValue(mediatorRequest, v);
 						}
 					}

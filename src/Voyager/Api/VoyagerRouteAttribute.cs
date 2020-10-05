@@ -3,14 +3,14 @@
 namespace Voyager.Api
 {
 	[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
-	public class RouteAttribute : Attribute
+	public class VoyagerRouteAttribute : Attribute
 	{
-		public RouteAttribute(HttpMethod method, string template)
+		public VoyagerRouteAttribute(HttpMethod method, string template)
 			: this(Enum.GetName(typeof(HttpMethod), method), template)
 		{
 		}
 
-		public RouteAttribute(string method, string template)
+		public VoyagerRouteAttribute(string method, string template)
 		{
 			if (template.StartsWith("/"))
 			{
@@ -24,9 +24,9 @@ namespace Voyager.Api
 
 		public string Template { get; set; }
 
-		public VoyagerRoute ToEndpointRoute(Type type)
+		public VoyagerRouteDefinition ToEndpointRoute(Type type)
 		{
-			return new VoyagerRoute
+			return new VoyagerRouteDefinition
 			{
 				Method = Method,
 				RequestType = type,

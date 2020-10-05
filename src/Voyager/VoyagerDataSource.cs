@@ -18,9 +18,9 @@ namespace Voyager
 	public class VoyagerDataSource : EndpointDataSource
 	{
 		private readonly VoyagerMapOptions mapOptions;
-		private readonly IEnumerable<VoyagerRoute> voyagerRoutes;
+		private readonly IEnumerable<VoyagerRouteDefinition> voyagerRoutes;
 
-		public VoyagerDataSource(IEnumerable<VoyagerRoute> voyagerRoutes, VoyagerMapOptions mapOptions)
+		public VoyagerDataSource(IEnumerable<VoyagerRouteDefinition> voyagerRoutes, VoyagerMapOptions mapOptions)
 		{
 			this.voyagerRoutes = voyagerRoutes;
 			this.mapOptions = mapOptions;

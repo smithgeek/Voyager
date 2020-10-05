@@ -134,7 +134,7 @@ namespace Voyager
 				{
 					if (!type.IsInterface && !type.IsAbstract)
 					{
-						var routeAttributes = type.GetCustomAttributes<RouteAttribute>();
+						var routeAttributes = type.GetCustomAttributes<VoyagerRouteAttribute>();
 						foreach (var routeAttribute in routeAttributes)
 						{
 							services.AddTransient((serviceProvider) => routeAttribute.ToEndpointRoute(type));

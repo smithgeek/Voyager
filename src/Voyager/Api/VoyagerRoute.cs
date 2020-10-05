@@ -2,7 +2,7 @@
 
 namespace Voyager.Api
 {
-	public class VoyagerRoute
+	public class VoyagerRouteDefinition
 	{
 		public string Method { get; set; }
 		public Type RequestType { get; set; }

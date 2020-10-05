@@ -9,7 +9,7 @@ namespace Voyager
 	{
 		public static void MapVoyager(this IEndpointRouteBuilder endpoints, VoyagerMapOptions options = null)
 		{
-			var voyagerEndpoints = endpoints.ServiceProvider.GetRequiredService<IEnumerable<VoyagerRoute>>();
+			var voyagerEndpoints = endpoints.ServiceProvider.GetRequiredService<IEnumerable<VoyagerRouteDefinition>>();
 			var voyagerOptionsHolder = endpoints.ServiceProvider.GetRequiredService<VoyagerOptionsHolder>();
 			options ??= new VoyagerMapOptions();
 			voyagerOptionsHolder.MapOptions = options;

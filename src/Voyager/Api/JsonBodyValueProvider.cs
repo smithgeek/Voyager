@@ -25,7 +25,7 @@ namespace Voyager.Api
 			var kvp = dictionary.FirstOrDefault(kvp => JsonNamingPolicy.CamelCase.ConvertName(kvp.Key) == jsonKey);
 			if (kvp.Key != null)
 			{
-				return new ValueProviderResult(kvp.Value.ToString());
+				return new ValueProviderResult(kvp.Value?.ToString());
 			}
 			return new ValueProviderResult();
 		}

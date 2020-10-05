@@ -4,7 +4,7 @@ using Voyager.Api.Authorization;
 
 namespace Shared.GetWeatherForecast
 {
-	[Route(HttpMethod.Get, "v2/WeatherForecast/{city}")]
+	[VoyagerRoute(HttpMethod.Get, "v2/WeatherForecast/{city}")]
 	public class GetWeatherForecastRequest : EndpointRequest<IEnumerable<GetWeatherForecastResponse>>, Enforce<AuthenticatedPolicy>
 	{
 		[FromRoute]
