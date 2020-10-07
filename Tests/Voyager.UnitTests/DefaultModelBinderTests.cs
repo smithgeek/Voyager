@@ -1,12 +1,15 @@
 ﻿using FluentAssertions;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Voyager.Api;
+using Voyager.UnitTests.Models;
 using Xunit;
 
 namespace Voyager.UnitTests
@@ -20,6 +23,7 @@ namespace Voyager.UnitTests
 		public DefaultModelBinderTests()
 		{
 			var services = new ServiceCollection();
+			services.ConfigureOptions<JsonConfigureOptions>();
 			services.AddVoyager(c => c.AddAssemblyWith<BlankPolicy>());
 			provider = services.BuildServiceProvider();
 			binder = provider.GetService<DefaultModelBinder>();
@@ -30,10 +34,23 @@ namespace Voyager.UnitTests
 		}
 
 		[Fact]
+		public async Task IdRequest()
+		{
+			var request = await BindRequest<User>("{ \"userId\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\"}");
+			request.UserId.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
+		}
+
+		[Fact]
+		public async Task SomeIdRequests()
+		{
+			var request = await BindRequest<SomeIds>("{ \"UserId1\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\", \"UserId2\": \"user.e98f7c99-45d4-449b-97f2-670cc90d9f08\"}");
+			request.UserId1.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
+			request.UserId2.ToString().Should().Be("user.e98f7c99-45d4-449b-97f2-670cc90d9f08");
+		}
+
+		[Fact]
 		public async Task Test()
 		{
-			using var stream = new MemoryStream();
-			using var writer = new StreamWriter(stream);
 			var data = new Request
 			{
 				Complex = new ComplexObject { Boolean = true, String = "more data" },
@@ -58,14 +75,7 @@ namespace Voyager.UnitTests
 				Version = new Version("1.2.3.4"),
 				Guid = Guid.NewGuid()
 			};
-			var json = System.Text.Json.JsonSerializer.Serialize(data);
-			writer.Write(json);
-			writer.Flush();
-			stream.Position = 0;
-			httpContext.Request.Body = stream;
-			httpContext.Request.QueryString = new QueryString("?value=7");
-			httpContext.Request.ContentType = "application/json";
-			var request = await binder.Bind<Request>(httpContext);
+			var request = await BindRequest<Request>(data);
 			request.Complex.Boolean.Should().Be(data.Complex.Boolean);
 			request.Complex.String.Should().Be(data.Complex.String);
 			request.Int.Should().Be(data.Int);
@@ -89,6 +99,24 @@ namespace Voyager.UnitTests
 			request.ULong.Should().Be(data.ULong);
 			request.Uri.Should().Be(data.Uri);
 			request.Version.Should().Be(data.Version);
+		}
+
+		private Task<T> BindRequest<T>(object data)
+		{
+			return BindRequest<T>(JsonSerializer.Serialize(data));
+		}
+
+		private Task<T> BindRequest<T>(string json)
+		{
+			using var stream = new MemoryStream();
+			using var writer = new StreamWriter(stream);
+			writer.Write(json);
+			writer.Flush();
+			stream.Position = 0;
+			httpContext.Request.Body = stream;
+			httpContext.Request.QueryString = new QueryString("?value=7");
+			httpContext.Request.ContentType = "application/json";
+			return binder.Bind<T>(httpContext);
 		}
 
 		public class ComplexObject
@@ -139,7 +167,7 @@ namespace Voyager.UnitTests
 			public long Long { get; set; }
 			public string NotExist { get; set; }
 
-			[FromQuery("value")]
+			[Api.FromQuery("value")]
 			public int QueryValue { get; set; }
 
 			public sbyte SByte { get; set; }
@@ -156,6 +184,21 @@ namespace Voyager.UnitTests
 
 			[System.Text.Json.Serialization.JsonConverter(typeof(CustomVersionConverter))]
 			public Version Version { get; set; }
+		}
+
+		public class SomeIds
+		{
+			public Id<User> UserId1 { get; set; }
+			public Id<User> UserId2 { get; set; }
+		}
+	}
+
+	public class JsonConfigureOptions : IConfigureOptions<JsonOptions>
+	{
+		public void Configure(JsonOptions options)
+		{
+			options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+			options.JsonSerializerOptions.Converters.Add(new StrongIdValueConverterFactory());
 		}
 	}
 }

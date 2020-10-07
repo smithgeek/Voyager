@@ -14,6 +14,8 @@ namespace Voyager.Api
 			this.dictionary = dictionary;
 		}
 
+		public JsonValueKind? ValueKind { get; set; }
+
 		public bool ContainsPrefix(string prefix)
 		{
 			return false;
@@ -25,6 +27,12 @@ namespace Voyager.Api
 			var kvp = dictionary.FirstOrDefault(kvp => JsonNamingPolicy.CamelCase.ConvertName(kvp.Key) == jsonKey);
 			if (kvp.Key != null)
 			{
+				var element = (JsonElement?)kvp.Value;
+				ValueKind = element?.ValueKind;
+				if (element.HasValue && element.Value.ValueKind == JsonValueKind.String)
+				{
+					return new ValueProviderResult(kvp.Value?.ToString());
+				}
 				return new ValueProviderResult(kvp.Value?.ToString());
 			}
 			return new ValueProviderResult();

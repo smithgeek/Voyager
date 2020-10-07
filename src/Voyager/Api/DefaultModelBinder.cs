@@ -83,11 +83,11 @@ namespace Voyager.Api
 
 			foreach (var property in typeBindingRepo.GetProperties(returnType))
 			{
+				var propType = property.Property.PropertyType;
 				var valueProvider = GetProvider(property);
 				if (valueProvider != null)
 				{
 					var value = valueProvider.GetValue(property.Name);
-					var propType = property.Property.PropertyType;
 					if (value.FirstValue != null)
 					{
 						if (propType == typeof(string))
@@ -126,10 +126,18 @@ namespace Voyager.Api
 						{
 							property.Property.SetValue(mediatorRequest, Guid.Parse(value.FirstValue));
 						}
+						else if (propType == typeof(decimal) || propType == typeof(double) || propType == typeof(int) || propType == typeof(uint) ||
+							propType == typeof(byte) || propType == typeof(sbyte) || propType == typeof(long) || propType == typeof(float) ||
+							propType == typeof(short) || propType == typeof(ulong) || propType == typeof(ushort))
+						{
+							var objValue = JsonSerializer.Deserialize(value.FirstValue, propType, jsonOptions.Value.JsonSerializerOptions);
+							property.Property.SetValue(mediatorRequest, objValue);
+						}
 						else
 						{
-							var v = JsonSerializer.Deserialize(value.FirstValue, propType, jsonOptions.Value.JsonSerializerOptions);
-							property.Property.SetValue(mediatorRequest, v);
+							var text = bodyProvider.ValueKind == JsonValueKind.String ? $"\"{value.FirstValue}\"" : value.FirstValue;
+							var objValue = JsonSerializer.Deserialize(text, propType, jsonOptions.Value.JsonSerializerOptions);
+							property.Property.SetValue(mediatorRequest, objValue);
 						}
 					}
 				}
