@@ -1,6 +1,7 @@
 ﻿using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using System;
@@ -41,15 +42,7 @@ namespace Voyager.UnitTests
 		}
 
 		[Fact]
-		public async Task SomeIdRequests()
-		{
-			var request = await BindRequest<SomeIds>("{ \"UserId1\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\", \"UserId2\": \"user.e98f7c99-45d4-449b-97f2-670cc90d9f08\"}");
-			request.UserId1.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
-			request.UserId2.ToString().Should().Be("user.e98f7c99-45d4-449b-97f2-670cc90d9f08");
-		}
-
-		[Fact]
-		public async Task Test()
+		public async Task KitchenSink()
 		{
 			var data = new Request
 			{
@@ -75,12 +68,23 @@ namespace Voyager.UnitTests
 				Version = new Version("1.2.3.4"),
 				Guid = Guid.NewGuid()
 			};
-			var request = await BindRequest<Request>(data);
+			var request = await BindRequest<Request>(data, new RequestOptions
+			{
+				QueryString = "?value=7&implicitQueryValue=11",
+				RouteValues = new RouteValueDictionary
+				{
+					{ "routeValue", 14 },
+					{ "implicitRouteValue", 22 }
+				}
+			});
 			request.Complex.Boolean.Should().Be(data.Complex.Boolean);
 			request.Complex.String.Should().Be(data.Complex.String);
 			request.Int.Should().Be(data.Int);
 			request.String.Should().Be(data.String);
 			request.QueryValue.Should().Be(7);
+			request.ImplicitQueryValue.Should().Be(11);
+			request.RouteValue.Should().Be(14);
+			request.ImplicitRouteValue.Should().Be(22);
 			request.NotExist.Should().BeNull();
 			request.Bool.Should().Be(data.Bool);
 			request.Byte.Should().Be(data.Byte);
@@ -101,20 +105,36 @@ namespace Voyager.UnitTests
 			request.Version.Should().Be(data.Version);
 		}
 
-		private Task<T> BindRequest<T>(object data)
+		[Fact]
+		public async Task SomeIdRequests()
 		{
-			return BindRequest<T>(JsonSerializer.Serialize(data));
+			var request = await BindRequest<SomeIds>("{ \"UserId1\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\", \"UserId2\": \"user.e98f7c99-45d4-449b-97f2-670cc90d9f08\"}");
+			request.UserId1.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
+			request.UserId2.ToString().Should().Be("user.e98f7c99-45d4-449b-97f2-670cc90d9f08");
 		}
 
-		private Task<T> BindRequest<T>(string json)
+		private Task<T> BindRequest<T>(object data, RequestOptions options = null)
 		{
+			return BindRequest<T>(JsonSerializer.Serialize(data), options);
+		}
+
+		private Task<T> BindRequest<T>(string json, RequestOptions options = null)
+		{
+			options ??= new RequestOptions();
 			using var stream = new MemoryStream();
 			using var writer = new StreamWriter(stream);
 			writer.Write(json);
 			writer.Flush();
 			stream.Position = 0;
+			if (options.RouteValues != null)
+			{
+				httpContext.Request.RouteValues = options.RouteValues;
+			}
 			httpContext.Request.Body = stream;
-			httpContext.Request.QueryString = new QueryString("?value=7");
+			if (options.QueryString != null)
+			{
+				httpContext.Request.QueryString = new QueryString(options.QueryString);
+			}
 			httpContext.Request.ContentType = "application/json";
 			return binder.Bind<T>(httpContext);
 		}
@@ -163,6 +183,8 @@ namespace Voyager.UnitTests
 			public double Double { get; set; }
 			public float Float { get; set; }
 			public Guid Guid { get; set; }
+			public int ImplicitQueryValue { get; set; }
+			public int ImplicitRouteValue { get; set; }
 			public int Int { get; set; }
 			public long Long { get; set; }
 			public string NotExist { get; set; }
@@ -170,11 +192,14 @@ namespace Voyager.UnitTests
 			[Api.FromQuery("value")]
 			public int QueryValue { get; set; }
 
+			[Api.FromRoute("routeValue")]
+			public int RouteValue { get; set; }
+
 			public sbyte SByte { get; set; }
 			public short Short { get; set; }
 			public string String { get; set; }
 
-			[System.Text.Json.Serialization.JsonConverter(typeof(CustomTimeSpanConverter))]
+			[JsonConverter(typeof(CustomTimeSpanConverter))]
 			public TimeSpan TimeSpan { get; set; }
 
 			public uint UInt { get; set; }
@@ -182,8 +207,14 @@ namespace Voyager.UnitTests
 			public Uri Uri { get; set; }
 			public ushort UShort { get; set; }
 
-			[System.Text.Json.Serialization.JsonConverter(typeof(CustomVersionConverter))]
+			[JsonConverter(typeof(CustomVersionConverter))]
 			public Version Version { get; set; }
+		}
+
+		public class RequestOptions
+		{
+			public string QueryString { get; set; }
+			public RouteValueDictionary RouteValues { get; set; }
 		}
 
 		public class SomeIds

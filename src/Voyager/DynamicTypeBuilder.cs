@@ -25,7 +25,7 @@ namespace Voyager
 			var hasProperties = false;
 			foreach (var property in typeBindingRepo.GetProperties(type))
 			{
-				if (property.BindingSource == BindingSource.Body)
+				if (property.BindingSource == BindingSource.Body || property.BindingSource == null)
 				{
 					CreateProperty(typeBuilder, property.Name, property.Property.PropertyType);
 					hasProperties = true;

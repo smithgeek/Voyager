@@ -35,7 +35,7 @@ namespace Voyager
 				Description = property.Name,
 				PropertyName = property.Name
 			};
-			var routeAttr = property.GetCustomAttribute<Voyager.Api.FromRouteAttribute>();
+			var routeAttr = property.GetCustomAttribute<Api.FromRouteAttribute>();
 			if (routeAttr != null)
 			{
 				boundProp.Name = routeAttr.Name ?? GetCamelCase(property.Name);
@@ -43,7 +43,7 @@ namespace Voyager
 				return boundProp;
 			}
 
-			var queryAttr = property.GetCustomAttribute<Voyager.Api.FromQueryAttribute>();
+			var queryAttr = property.GetCustomAttribute<Api.FromQueryAttribute>();
 			if (queryAttr != null)
 			{
 				boundProp.Name = queryAttr.Name ?? GetCamelCase(property.Name);
@@ -51,7 +51,7 @@ namespace Voyager
 				return boundProp;
 			}
 
-			var formAttr = property.GetCustomAttribute<Voyager.Api.FromFormAttribute>();
+			var formAttr = property.GetCustomAttribute<Api.FromFormAttribute>();
 			if (formAttr != null)
 			{
 				boundProp.Name = formAttr.Name ?? GetCamelCase(property.Name);
@@ -59,7 +59,6 @@ namespace Voyager
 				return boundProp;
 			}
 			boundProp.Name = GetCamelCase(property.Name);
-			boundProp.BindingSource = BindingSource.Body;
 			return boundProp;
 		}
 
