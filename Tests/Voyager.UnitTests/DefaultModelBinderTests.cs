@@ -129,6 +129,29 @@ namespace Voyager.UnitTests
 		}
 
 		[Fact]
+		public async Task NullableIdInQuery()
+		{
+			var request = await BindRequest<NullableIds>(null, new RequestOptions
+			{
+				QueryString = "?id=7"
+			});
+			request.Id.Should().Be(7);
+		}
+
+		[Fact]
+		public async Task NullableIdInRoute()
+		{
+			var request = await BindRequest<NullableIds>(null, new RequestOptions
+			{
+				RouteValues = new RouteValueDictionary
+				{
+					{"id", 7 }
+				}
+			});
+			request.Id.Should().Be(7);
+		}
+
+		[Fact]
 		public async Task SomeIdRequests()
 		{
 			var request = await BindRequest<SomeIds>("{ \"UserId1\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\", \"UserId2\": \"user.e98f7c99-45d4-449b-97f2-670cc90d9f08\"}");
@@ -192,6 +215,11 @@ namespace Voyager.UnitTests
 			{
 				writer.WriteStringValue(value.ToString());
 			}
+		}
+
+		public class NullableIds
+		{
+			public int? Id { get; set; }
 		}
 
 		public class Request

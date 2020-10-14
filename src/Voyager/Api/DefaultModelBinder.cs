@@ -90,6 +90,10 @@ namespace Voyager.Api
 					var value = valueProvider.GetValue(property.Name);
 					if (value.FirstValue != null)
 					{
+						if (Nullable.GetUnderlyingType(propType) != null)
+						{
+							propType = Nullable.GetUnderlyingType(propType);
+						}
 						if (propType == typeof(string))
 						{
 							property.Property.SetValue(mediatorRequest, value.FirstValue);
