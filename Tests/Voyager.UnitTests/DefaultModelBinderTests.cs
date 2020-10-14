@@ -35,6 +35,29 @@ namespace Voyager.UnitTests
 		}
 
 		[Fact]
+		public async Task IdInQuery()
+		{
+			var request = await BindRequest<User>(null, new RequestOptions
+			{
+				QueryString = "?userId=user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72"
+			});
+			request.UserId.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
+		}
+
+		[Fact]
+		public async Task IdInRoute()
+		{
+			var request = await BindRequest<User>(null, new RequestOptions
+			{
+				RouteValues = new RouteValueDictionary
+				{
+					{"userId", "user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72" }
+				}
+			});
+			request.UserId.ToString().Should().Be("user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72");
+		}
+
+		[Fact]
 		public async Task IdRequest()
 		{
 			var request = await BindRequest<User>("{ \"userId\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\"}");

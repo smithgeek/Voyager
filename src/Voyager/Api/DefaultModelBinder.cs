@@ -135,7 +135,8 @@ namespace Voyager.Api
 						}
 						else
 						{
-							var text = bodyProvider.ValueKind == JsonValueKind.String ? $"\"{value.FirstValue}\"" : value.FirstValue;
+							var needsQuotes = bodyProvider.ValueKind == JsonValueKind.String || bodyProvider.ValueKind == null;
+							var text = needsQuotes ? $"\"{value.FirstValue}\"" : value.FirstValue;
 							var objValue = JsonSerializer.Deserialize(text, propType, jsonOptions.Value.JsonSerializerOptions);
 							property.Property.SetValue(mediatorRequest, objValue);
 						}
