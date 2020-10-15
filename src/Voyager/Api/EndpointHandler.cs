@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.Net;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,6 +43,7 @@ namespace Voyager.Api
 
 		protected IActionResult BadRequest(ProblemDetails details)
 		{
+			details.Status = (int)HttpStatusCode.BadRequest;
 			return new BadRequestObjectResult(details);
 		}
 
@@ -57,6 +59,7 @@ namespace Voyager.Api
 
 		protected IActionResult NotFound(ProblemDetails details)
 		{
+			details.Status = (int)HttpStatusCode.NotFound;
 			return new NotFoundObjectResult(details);
 		}
 
@@ -77,6 +80,7 @@ namespace Voyager.Api
 
 		protected IActionResult Unauthorized(ProblemDetails details)
 		{
+			details.Status = (int)HttpStatusCode.Unauthorized;
 			return new UnauthorizedObjectResult(details);
 		}
 
@@ -120,12 +124,29 @@ namespace Voyager.Api
 
 		protected ActionResult<TResponse> BadRequest(ProblemDetails details)
 		{
+			details.Status = (int)HttpStatusCode.BadRequest;
 			return new BadRequestObjectResult(details);
 		}
 
-		protected async Task<ActionResult<TResponse>> BadRequest(Task<ProblemDetails> details)
+		protected async Task<ActionResult<TResponse>> BadRequest(Task<ProblemDetails> detailsTask)
 		{
-			return BadRequest(await details);
+			return BadRequest(await detailsTask);
+		}
+
+		protected IActionResult NotFound()
+		{
+			return new NotFoundResult();
+		}
+
+		protected IActionResult NotFound(ProblemDetails details)
+		{
+			details.Status = (int)HttpStatusCode.NotFound;
+			return new NotFoundObjectResult(details);
+		}
+
+		protected async Task<IActionResult> NotFound(Task<ProblemDetails> details)
+		{
+			return NotFound(await details);
 		}
 
 		protected ActionResult<TResponse> Ok(TResponse response)
@@ -145,6 +166,7 @@ namespace Voyager.Api
 
 		protected ActionResult<TResponse> Unauthorized(ProblemDetails details)
 		{
+			details.Status = (int)HttpStatusCode.Unauthorized;
 			return new UnauthorizedObjectResult(details);
 		}
 
