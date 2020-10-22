@@ -60,8 +60,8 @@ namespace Voyager
 		{
 			var modelBinder = context.RequestServices.GetRequiredService<ModelBinder>();
 			var mediatorRequest = await modelBinder.Bind(context, requestType);
-			var mediator = context.RequestServices.GetService<IMediator>();
-			var response = await mediator.Send(mediatorRequest);
+			var sender = context.RequestServices.GetService<ISender>();
+			var response = await sender.Send(mediatorRequest);
 			await context.WriteResultAsync(response);
 		}
 	}
