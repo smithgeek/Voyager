@@ -54,10 +54,7 @@ namespace Voyager
 			RegisterVoyagerRoutes(services, builder.Assemblies);
 			AddCustomAuthorization(services, builder.Assemblies);
 
-			foreach (var assembly in builder.Assemblies)
-			{
-				services.AddMediatR(assembly);
-			}
+			services.AddMediatR(builder.Assemblies.ToArray());
 		}
 
 		internal static IEnumerable<Type> GetAllTypesImplementingType(Type openGenericType, Assembly assembly)

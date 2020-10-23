@@ -3,9 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.Options;
 using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -38,9 +37,14 @@ namespace Voyager.Api
 			return BindInternal(context, returnType);
 		}
 
-		private async Task<object> BindInternal(HttpContext context, Type returnType)
+		private Task<object> BindInternal(HttpContext context, Type returnType)
 		{
 			var mediatorRequest = Activator.CreateInstance(returnType);
+			var requestProperties = typeBindingRepo.GetProperties(returnType);
+			if (!requestProperties.Any())
+			{
+				return Task.FromResult(mediatorRequest);
+			}
 			var routeProvider = new RouteValueProvider(BindingSource.Path, context.Request.RouteValues);
 			var queryProvider = new QueryStringValueProvider(BindingSource.Query, context.Request.Query, CultureInfo.InvariantCulture);
 			var compositeValueProvider = new CompositeValueProvider
@@ -49,7 +53,7 @@ namespace Voyager.Api
 				queryProvider
 			};
 			IValueProvider formProvider = null;
-			var bodyProvider = new JsonBodyValueProvider(await ParseBody(context));
+			var bodyProvider = new JsonBodyValueProvider(context, jsonOptions);
 			if (context.Request.HasFormContentType)
 			{
 				formProvider = new FormValueProvider(BindingSource.Form, context.Request.Form, CultureInfo.CurrentCulture); ;
@@ -81,7 +85,7 @@ namespace Voyager.Api
 				return compositeValueProvider;
 			}
 
-			foreach (var property in typeBindingRepo.GetProperties(returnType))
+			foreach (var property in requestProperties)
 			{
 				var propType = property.Property.PropertyType;
 				var valueProvider = GetProvider(property);
@@ -147,22 +151,7 @@ namespace Voyager.Api
 					}
 				}
 			}
-			return mediatorRequest;
-		}
-
-		private async Task<Dictionary<string, object>> ParseBody(HttpContext context)
-		{
-			if (context.Request.HasFormContentType)
-			{
-				return new Dictionary<string, object>();
-			}
-			using var reader = new StreamReader(context.Request.Body);
-			var body = await reader.ReadToEndAsync();
-			if (string.IsNullOrWhiteSpace(body))
-			{
-				return new Dictionary<string, object>();
-			}
-			return JsonSerializer.Deserialize<Dictionary<string, object>>(body, jsonOptions.Value.JsonSerializerOptions);
+			return Task.FromResult(mediatorRequest);
 		}
 	}
 }
