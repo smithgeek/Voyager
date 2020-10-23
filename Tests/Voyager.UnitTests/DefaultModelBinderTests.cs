@@ -15,9 +15,10 @@ using Xunit;
 
 namespace Voyager.UnitTests
 {
-	public class DefaultModelBinderTests
+	public class DefaultModelBinderTests : IDisposable
 	{
 		private readonly DefaultModelBinder binder;
+		private readonly MemoryStream bodyStream = new MemoryStream();
 		private readonly HttpContext httpContext;
 		private readonly IServiceProvider provider;
 
@@ -32,6 +33,28 @@ namespace Voyager.UnitTests
 			{
 				RequestServices = services.BuildServiceProvider(),
 			};
+		}
+
+		public void Dispose()
+		{
+			bodyStream?.Dispose();
+		}
+
+		[Fact]
+		public async Task DontParseBodyIfValuesAreElsewhere()
+		{
+			await BindRequest<User>("{\"nothing\": \"important\"}", new RequestOptions
+			{
+				QueryString = "?userId=user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72"
+			});
+			httpContext.Request.Body.Position.Should().Be(0);
+		}
+
+		[Fact]
+		public async Task DontParseIfNoProperties()
+		{
+			await BindRequest<EmptyRequest>("{\"nothing\": \"important\"}");
+			httpContext.Request.Body.Position.Should().Be(0);
 		}
 
 		[Fact]
@@ -152,6 +175,13 @@ namespace Voyager.UnitTests
 		}
 
 		[Fact]
+		public async Task ParseBodyIfNotFoundAnywhere()
+		{
+			await BindRequest<User>("{\"userId\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\"}");
+			httpContext.Request.Body.Invoking(b => b.Position).Should().Throw<ObjectDisposedException>();
+		}
+
+		[Fact]
 		public async Task SomeIdRequests()
 		{
 			var request = await BindRequest<SomeIds>("{ \"UserId1\": \"user.9f6f3a93-4d61-48a4-b222-c6b3917f1f72\", \"UserId2\": \"user.e98f7c99-45d4-449b-97f2-670cc90d9f08\"}");
@@ -167,16 +197,15 @@ namespace Voyager.UnitTests
 		private Task<T> BindRequest<T>(string json, RequestOptions options = null)
 		{
 			options ??= new RequestOptions();
-			using var stream = new MemoryStream();
-			using var writer = new StreamWriter(stream);
+			var writer = new StreamWriter(bodyStream);
 			writer.Write(json);
 			writer.Flush();
-			stream.Position = 0;
+			bodyStream.Position = 0;
 			if (options.RouteValues != null)
 			{
 				httpContext.Request.RouteValues = options.RouteValues;
 			}
-			httpContext.Request.Body = stream;
+			httpContext.Request.Body = bodyStream;
 			if (options.QueryString != null)
 			{
 				httpContext.Request.QueryString = new QueryString(options.QueryString);
@@ -273,6 +302,8 @@ namespace Voyager.UnitTests
 			public Id<User> UserId1 { get; set; }
 			public Id<User> UserId2 { get; set; }
 		}
+
+		private class EmptyRequest { }
 	}
 
 	public class JsonConfigureOptions : IConfigureOptions<JsonOptions>
