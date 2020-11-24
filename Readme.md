@@ -8,8 +8,6 @@ Easily create decoupled components for every route endpoint.
 Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
 
 ## Contents
-[Breaking Changes](#Breaking-Changes)
-
 [Install](#Install)
 
 [Getting Started](#Getting-Started)
@@ -25,10 +23,6 @@ Read the [announcement blog post](https://smithgeek.com/announcing-voyager/).
 [Authorization](#Authorization)
 
 [Azure Functions Forwarder](#Azure-Functions-Forwarder)
-
-## Breaking Changes
-### 0.3.0
-`UseVoyagerRouting()` and `UseVoyagerEndpoints()` have been removed. Instead you should use `UseRouting` and `UseEndpoints` and then configure your endpoints by adding `endpoints.MapVoyager()`. See the [Getting Started](#Getting-Started) section below for an example.
 
 ## Install
 You should install using nuget
@@ -80,7 +74,7 @@ public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
     app.UseMiddleware<SampleMiddleware>();
     app.UseEndpoints(endpoints =>
     {
-		endpoints.MapVoyager();
+	endpoints.MapVoyager();
         endpoints.MapControllers();
     });
 }
@@ -104,9 +98,9 @@ public class Startup : FunctionsStartup
         app.UseRouting();
         app.UseMiddleware<SampleMiddleware>();
         app.UseEndpoints(endpoints => 
-		{
-			endpoints.MapVoyager();
-		})
+	{
+		endpoints.MapVoyager();
+	})
     }
 
     public override void Configure(IFunctionsHostBuilder builder)
@@ -125,9 +119,9 @@ public class Startup : FunctionsStartup
 ```
 
 ## Requests and Handlers
-Requests in Voyager are modeled as a class with a `[Route]` Attribute. You must specify the http method and the route path this request is modeling.
+Requests in Voyager are modeled as a class with a `[VoyagerRoute]` Attribute. You must specify the http method and the route path this request is modeling.
 ```cs
-[Route(HttpMethod.Get, "voyager/info")]
+[VoyagerRoute(HttpMethod.Get, "voyager/info")]
 public class GetVoyagerInfoRequest : EndpointRequest
 {
 }
