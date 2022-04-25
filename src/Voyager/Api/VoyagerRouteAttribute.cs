@@ -2,7 +2,7 @@
 
 namespace Voyager.Api
 {
-	[AttributeUsage(AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
+	[AttributeUsage(AttributeTargets.Struct | AttributeTargets.Class, Inherited = false, AllowMultiple = true)]
 	public class VoyagerRouteAttribute : Attribute
 	{
 		public VoyagerRouteAttribute(HttpMethod method, string template)
