@@ -19,7 +19,7 @@ namespace Voyager.Mediatr
 
 		public Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
 		{
-			var validationContext = new ValidationContext(request);
+			var validationContext = new ValidationContext<TRequest>(request);
 			var failures = validators.Select(v => v.Validate(validationContext))
 				.SelectMany(result => result.Errors).Where(failure => failure != null);
 			if (failures.Any())

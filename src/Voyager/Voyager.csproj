@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-		<TargetFramework>netcoreapp3.1</TargetFramework>
+		<TargetFramework>net6.0</TargetFramework>
 		<Authors>Brent Smith</Authors>
 		<Company>Smithgeek LLC</Company>
 		<Product>Voyager</Product>
@@ -18,10 +18,10 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="FluentValidation" Version="8.6.2" />
-		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="8.6.2" />
-		<PackageReference Include="MediatR" Version="9.0.0" />
-		<PackageReference Include="MediatR.Extensions.Microsoft.DependencyInjection" Version="9.0.0" />
+		<PackageReference Include="FluentValidation" Version="10.4.0" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="10.4.0" />
+		<PackageReference Include="MediatR" Version="10.0.1" />
+		<PackageReference Include="MediatR.Extensions.Microsoft.DependencyInjection" Version="10.0.1" />
 	</ItemGroup>
 
 	<ItemGroup>
