@@ -54,7 +54,7 @@ namespace Voyager
 			RegisterVoyagerRoutes(services, builder.Assemblies);
 			AddCustomAuthorization(services, builder.Assemblies);
 
-			services.AddMediatR(builder.Assemblies.ToArray());
+			services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(builder.Assemblies.ToArray()));
 		}
 
 		internal static IEnumerable<Type> GetAllTypesImplementingType(Type openGenericType, Assembly assembly)
@@ -197,6 +197,7 @@ namespace Voyager
 		}
 
 		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.
-		private class IsRegistered { }
+		private class IsRegistered
+		{ }
 	}
 }
