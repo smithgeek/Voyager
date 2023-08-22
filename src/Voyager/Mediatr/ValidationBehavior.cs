@@ -17,7 +17,7 @@ namespace Voyager.Mediatr
 			this.validators = validators;
 		}
 
-		public Task<TResponse> Handle(TRequest request, CancellationToken cancellationToken, RequestHandlerDelegate<TResponse> next)
+		public Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
 		{
 			var validationContext = new ValidationContext<TRequest>(request);
 			var failures = validators.Select(v => v.Validate(validationContext))
