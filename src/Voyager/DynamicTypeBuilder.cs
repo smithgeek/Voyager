@@ -18,7 +18,7 @@ namespace Voyager
 			moduleBuilder = assemblyBuilder.DefineDynamicModule("Types");
 		}
 
-		public Type CreateBodyType(Type type)
+		public Type? CreateBodyType(Type type)
 		{
 			var typeBuilder = GetRequestBodyTypeBuilder(type);
 			typeBuilder.DefineDefaultConstructor(MethodAttributes.Public | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName);

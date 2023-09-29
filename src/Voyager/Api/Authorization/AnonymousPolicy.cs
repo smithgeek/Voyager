@@ -5,7 +5,7 @@ namespace Voyager.Api.Authorization
 {
 	public class AnonymousPolicy : Policy
 	{
-		public IList<IAuthorizationRequirement> GetRequirements()
+		public IList<IAuthorizationRequirement>? GetRequirements()
 		{
 			return null;
 		}

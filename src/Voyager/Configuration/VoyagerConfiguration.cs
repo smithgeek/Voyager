@@ -4,7 +4,7 @@ namespace Voyager.Configuration
 {
 	public class VoyagerConfiguration
 	{
-		public string EnvironmentName { get; set; }
+		public string? EnvironmentName { get; set; }
 
 		public bool IsDevelopment()
 		{

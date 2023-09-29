@@ -7,7 +7,7 @@ namespace Voyager
 {
 	public static class VoyagerDataSourceExtensions
 	{
-		public static void MapVoyager(this IEndpointRouteBuilder endpoints, VoyagerMapOptions options = null)
+		public static void MapVoyager(this IEndpointRouteBuilder endpoints, VoyagerMapOptions? options = null)
 		{
 			var voyagerEndpoints = endpoints.ServiceProvider.GetRequiredService<IEnumerable<VoyagerRouteDefinition>>();
 			var voyagerOptionsHolder = endpoints.ServiceProvider.GetRequiredService<VoyagerOptionsHolder>();

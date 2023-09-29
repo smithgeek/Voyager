@@ -11,7 +11,7 @@ namespace Shared.TestEndpoint
 		{
 		}
 
-		public HttpContext HttpContext { get; set; }
+		public new HttpContext HttpContext { get; set; }
 
 		public override ActionResult<TestEndpointResponse> HandleRequest(TestEndpointRequest request)
 		{

@@ -4,8 +4,8 @@ namespace Voyager.Api
 {
 	public class VoyagerRouteDefinition
 	{
-		public string Method { get; set; }
-		public Type RequestType { get; set; }
-		public string Template { get; set; }
+		public required string Method { get; init; }
+		public required Type RequestType { get; init; }
+		public required string Template { get; init; }
 	}
 }

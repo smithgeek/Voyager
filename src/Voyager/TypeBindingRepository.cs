@@ -33,7 +33,8 @@ namespace Voyager
 			{
 				Property = property,
 				Description = property.Name,
-				PropertyName = property.Name
+				PropertyName = property.Name,
+				Name = GetCamelCase(property.Name)
 			};
 			var routeAttr = property.GetCustomAttribute<Api.FromRouteAttribute>();
 			if (routeAttr != null)
@@ -58,7 +59,6 @@ namespace Voyager
 				boundProp.BindingSource = BindingSource.Form;
 				return boundProp;
 			}
-			boundProp.Name = GetCamelCase(property.Name);
 			return boundProp;
 		}
 

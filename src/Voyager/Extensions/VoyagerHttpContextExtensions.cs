@@ -15,7 +15,7 @@ namespace Voyager
 
 		private static readonly RouteData EmptyRouteData = new RouteData();
 
-		public static string GetUserIpAddress(this HttpContext context)
+		public static string? GetUserIpAddress(this HttpContext context)
 		{
 			if (context.Request.Headers.ContainsKey("X-Real-IP"))
 			{
@@ -25,7 +25,7 @@ namespace Voyager
 			{
 				return context.Request.Headers["X-Forwarded-For"];
 			}
-			return context.Connection.RemoteIpAddress.ToString();
+			return context.Connection.RemoteIpAddress?.ToString();
 		}
 
 		public static Task WriteResultAsync(this HttpContext context, object response)
@@ -42,7 +42,7 @@ namespace Voyager
 			}
 			else
 			{
-				var actionResultMapper = context.RequestServices.GetService<IActionResultTypeMapper>();
+				var actionResultMapper = context.RequestServices.GetRequiredService<IActionResultTypeMapper>();
 				var resultDataType = actionResultMapper.GetResultDataType(response.GetType());
 				actionResult = actionResultMapper.Convert(response, resultDataType);
 			}

@@ -14,7 +14,7 @@ namespace Voyager.Api
 	{
 		private readonly HttpContext httpContext;
 		private readonly IOptions<JsonOptions> jsonOptions;
-		private Dictionary<string, object> dictionary;
+		private Dictionary<string, object>? dictionary = null;
 
 		public JsonBodyValueProvider(HttpContext httpContext, IOptions<JsonOptions> jsonOptions)
 		{
@@ -37,32 +37,35 @@ namespace Voyager.Api
 				task.Wait();
 				dictionary = task.Result;
 			}
-			var jsonKey = JsonNamingPolicy.CamelCase.ConvertName(key);
-			var kvp = dictionary.FirstOrDefault(kvp => JsonNamingPolicy.CamelCase.ConvertName(kvp.Key) == jsonKey);
-			if (kvp.Key != null)
+			if (dictionary != null)
 			{
-				var element = (JsonElement?)kvp.Value;
-				ValueKind = element?.ValueKind;
-				if (element.HasValue && element.Value.ValueKind == JsonValueKind.String)
+				var jsonKey = JsonNamingPolicy.CamelCase.ConvertName(key);
+				var kvp = dictionary.FirstOrDefault(kvp => JsonNamingPolicy.CamelCase.ConvertName(kvp.Key) == jsonKey);
+				if (kvp.Key != null)
 				{
+					var element = (JsonElement?)kvp.Value;
+					ValueKind = element?.ValueKind;
+					if (element.HasValue && element.Value.ValueKind == JsonValueKind.String)
+					{
+						return new ValueProviderResult(kvp.Value?.ToString());
+					}
 					return new ValueProviderResult(kvp.Value?.ToString());
 				}
-				return new ValueProviderResult(kvp.Value?.ToString());
 			}
 			return new ValueProviderResult();
 		}
 
-		private async Task<Dictionary<string, object>> ParseBody()
+		private async Task<Dictionary<string, object>?> ParseBody()
 		{
 			if (httpContext.Request.HasFormContentType)
 			{
-				return new Dictionary<string, object>();
+				return null;
 			}
 			using var reader = new StreamReader(httpContext.Request.Body);
 			var body = await reader.ReadToEndAsync();
 			if (string.IsNullOrWhiteSpace(body))
 			{
-				return new Dictionary<string, object>();
+				return null;
 			}
 			return JsonSerializer.Deserialize<Dictionary<string, object>>(body, jsonOptions.Value.JsonSerializerOptions);
 		}

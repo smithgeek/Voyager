@@ -2,7 +2,7 @@
 {
 	public class VoyagerMapOptions
 	{
-		private string prefix = null;
+		private string? prefix = null;
 
 		public string Prefix
 		{

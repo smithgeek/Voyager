@@ -2,6 +2,6 @@
 {
 	public class VoyagerOptionsHolder
 	{
-		public VoyagerMapOptions MapOptions { get; set; }
+		public VoyagerMapOptions? MapOptions { get; set; }
 	}
 }

@@ -7,7 +7,7 @@ namespace Voyager.Api.Authorization.Requirements.Authenticated
 	{
 		protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, AuthenticatedRequirement requirement)
 		{
-			if (context.User.Identity.IsAuthenticated)
+			if (context.User.Identity?.IsAuthenticated ?? false)
 			{
 				context.Succeed(requirement);
 			}

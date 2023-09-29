@@ -12,8 +12,8 @@ namespace Voyager
 {
 	public class OpenApiMetadata
 	{
-		public string AssemblyName { get; set; }
-		public string TypeFullName { get; set; }
+		public string? AssemblyName { get; set; }
+		public string? TypeFullName { get; set; }
 	}
 
 	internal class VoyagerApiDescriptionProvider : IApiDescriptionProvider
@@ -42,7 +42,7 @@ namespace Voyager
 					HttpMethod = route.Method,
 					ActionDescriptor = new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor
 					{
-						RouteValues = new Dictionary<string, string>()
+						RouteValues = new Dictionary<string, string?>()
 					},
 					RelativePath = path,
 				};
@@ -55,7 +55,7 @@ namespace Voyager
 						{
 							Name = property.Name.ToLower(),
 							Type = property.Property.PropertyType,
-							Source = property.BindingSource,
+							Source = property.BindingSource ?? BindingSource.Custom,
 							ParameterDescriptor = new Microsoft.AspNetCore.Mvc.Abstractions.ParameterDescriptor { Name = property.Description }
 						});
 					}
@@ -98,7 +98,7 @@ namespace Voyager
 		{
 		}
 
-		private Type GetResponseType(Type requestType)
+		private Type? GetResponseType(Type requestType)
 		{
 			var request = requestType.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
 			if (request != null)

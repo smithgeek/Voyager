@@ -9,12 +9,12 @@ using System.Threading.Tasks;
 
 namespace Voyager.Api
 {
-	abstract public class EndpointHandler<TRequest> : IEndpointHandler<TRequest>, IInjectHttpContext
+	public abstract class EndpointHandler<TRequest> : IEndpointHandler<TRequest>, IInjectHttpContext
 			where TRequest : IRequest<IActionResult>
 	{
-		public virtual HttpContext HttpContext { get; set; }
+		public virtual HttpContext? HttpContext { get; set; }
 
-		public virtual ClaimsPrincipal User { get => HttpContext?.User; }
+		public virtual ClaimsPrincipal? User { get => HttpContext?.User; }
 
 		public virtual Task<IActionResult> Handle(TRequest request, CancellationToken cancellation)
 		{
@@ -90,12 +90,12 @@ namespace Voyager.Api
 		}
 	}
 
-	abstract public class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>, IInjectHttpContext
+	public abstract class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>, IInjectHttpContext
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
-		public virtual HttpContext HttpContext { get; set; }
+		public virtual HttpContext? HttpContext { get; set; }
 
-		public virtual ClaimsPrincipal User { get => HttpContext?.User; }
+		public virtual ClaimsPrincipal? User { get => HttpContext?.User; }
 
 		public virtual Task<ActionResult<TResponse>> Handle(TRequest request, CancellationToken cancellation)
 		{

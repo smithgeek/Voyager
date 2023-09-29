@@ -6,7 +6,7 @@ namespace Voyager.Api
 	public class VoyagerRouteAttribute : Attribute
 	{
 		public VoyagerRouteAttribute(HttpMethod method, string template)
-			: this(Enum.GetName(typeof(HttpMethod), method), template)
+			: this(Enum.GetName(typeof(HttpMethod), method) ?? "Get", template)
 		{
 		}
 

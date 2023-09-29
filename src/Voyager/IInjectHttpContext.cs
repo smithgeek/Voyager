@@ -4,6 +4,6 @@ namespace Voyager
 {
 	public interface IInjectHttpContext
 	{
-		HttpContext HttpContext { get; set; }
+		HttpContext? HttpContext { get; set; }
 	}
 }

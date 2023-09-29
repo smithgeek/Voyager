@@ -42,7 +42,10 @@ namespace Voyager
 					var policies = voyagerRoute.RequestType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
 					foreach (var policy in policies.Select(p => p.GetGenericArguments()[0].FullName))
 					{
-						builder.Metadata.Add(new AuthorizeAttribute(policy));
+						if (policy != null)
+						{
+							builder.Metadata.Add(new AuthorizeAttribute(policy));
+						}
 					}
 					var endpoint = builder.Build();
 					endpoints.Add(endpoint);
@@ -61,8 +64,14 @@ namespace Voyager
 			var modelBinder = context.RequestServices.GetRequiredService<ModelBinder>();
 			var mediatorRequest = await modelBinder.Bind(context, requestType);
 			var sender = context.RequestServices.GetService<ISender>();
-			var response = await sender.Send(mediatorRequest);
-			await context.WriteResultAsync(response);
+			if (sender != null && mediatorRequest != null)
+			{
+				var response = await sender.Send(mediatorRequest);
+				if (response != null)
+				{
+					await context.WriteResultAsync(response);
+				}
+			}
 		}
 	}
 }

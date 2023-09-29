@@ -5,6 +5,6 @@ namespace Voyager.Api.Authorization
 {
 	public interface Policy
 	{
-		public IList<IAuthorizationRequirement> GetRequirements();
+		public IList<IAuthorizationRequirement>? GetRequirements();
 	}
 }

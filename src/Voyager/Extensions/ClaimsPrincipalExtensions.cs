@@ -6,7 +6,7 @@ namespace Voyager.Api
 {
 	public static class ClaimsPrincipalExtensions
 	{
-		public static string TryGetClaim(this ClaimsPrincipal principal, string claimType)
+		public static string? TryGetClaim(this ClaimsPrincipal principal, string claimType)
 		{
 			if (principal != null)
 			{

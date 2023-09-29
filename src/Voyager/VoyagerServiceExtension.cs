@@ -7,7 +7,7 @@ namespace Voyager
 {
 	public static class VoyagerServiceExtension
 	{
-		public static void AddVoyager(this IServiceCollection services, Action<VoyagerConfigurationBuilder> configure = null)
+		public static void AddVoyager(this IServiceCollection services, Action<VoyagerConfigurationBuilder>? configure = null)
 		{
 			var configurationBuilder = new VoyagerConfigurationBuilder();
 			if (configure == null)

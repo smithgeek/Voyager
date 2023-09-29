@@ -83,15 +83,19 @@ namespace Voyager
 					{
 						name = overrideType.GetGenericArguments()[0].FullName;
 					}
-					if (policies.ContainsKey(name) && overrideType == null)
+					if (name == null || (policies.ContainsKey(name) && overrideType == null))
 					{
 						continue;
 					}
-					policies[name] = new PolicyDefinition
+					var policy = (Policy?)Activator.CreateInstance(policyType);
+					if (policy != null)
 					{
-						Policy = (Policy)Activator.CreateInstance(policyType),
-						Name = name
-					};
+						policies[name] = new PolicyDefinition
+						{
+							Policy = policy,
+							Name = name
+						};
+					}
 				}
 			}
 			return policies.Values;
@@ -192,8 +196,8 @@ namespace Voyager
 
 		internal class PolicyDefinition
 		{
-			public string Name { get; set; }
-			public Policy Policy { get; set; }
+			public required string Name { get; init; }
+			public required Policy Policy { get; init; }
 		}
 
 		// Used to keep track if voyager registration has run at least once. It can be run multiple times with different assemblies.

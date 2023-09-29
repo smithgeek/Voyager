@@ -22,25 +22,25 @@ namespace Voyager.Api
 			jsonOptions.Value.JsonSerializerOptions.MaxDepth = 0;
 		}
 
-		public async Task<TRequest> Bind<TRequest>(HttpContext context)
+		public async Task<TRequest?> Bind<TRequest>(HttpContext context)
 		{
-			return (TRequest)await BindInternal(context, typeof(TRequest));
+			return (TRequest?)await BindInternal(context, typeof(TRequest));
 		}
 
-		public async Task<TRequest> Bind<TRequest, TResponse>(HttpContext context)
+		public async Task<TRequest?> Bind<TRequest, TResponse>(HttpContext context)
 		{
-			return (TRequest)await BindInternal(context, typeof(TRequest));
+			return (TRequest?)await BindInternal(context, typeof(TRequest));
 		}
 
-		public Task<object> Bind(HttpContext context, Type returnType)
+		public Task<object?> Bind(HttpContext context, Type requestType)
 		{
-			return BindInternal(context, returnType);
+			return BindInternal(context, requestType);
 		}
 
-		private Task<object> BindInternal(HttpContext context, Type returnType)
+		private Task<object?> BindInternal(HttpContext context, Type requestType)
 		{
-			var mediatorRequest = Activator.CreateInstance(returnType);
-			var requestProperties = typeBindingRepo.GetProperties(returnType);
+			var mediatorRequest = Activator.CreateInstance(requestType);
+			var requestProperties = typeBindingRepo.GetProperties(requestType);
 			if (!requestProperties.Any())
 			{
 				return Task.FromResult(mediatorRequest);
@@ -52,7 +52,7 @@ namespace Voyager.Api
 				routeProvider,
 				queryProvider
 			};
-			IValueProvider formProvider = null;
+			IValueProvider? formProvider = null;
 			var bodyProvider = new JsonBodyValueProvider(context, jsonOptions);
 			if (context.Request.HasFormContentType)
 			{
@@ -64,7 +64,7 @@ namespace Voyager.Api
 				compositeValueProvider.Add(bodyProvider);
 			}
 
-			IValueProvider GetProvider(BoundProperty property)
+			IValueProvider? GetProvider(BoundProperty property)
 			{
 				if (property.BindingSource == BindingSource.Path)
 				{
@@ -141,7 +141,7 @@ namespace Voyager.Api
 							var objValue = JsonSerializer.Deserialize(value.FirstValue, propType, jsonOptions.Value.JsonSerializerOptions);
 							property.Property.SetValue(mediatorRequest, objValue);
 						}
-						else
+						else if (propType != null)
 						{
 							var needsQuotes = bodyProvider.ValueKind == JsonValueKind.String || bodyProvider.ValueKind == null;
 							var text = needsQuotes ? $"\"{value.FirstValue}\"" : value.FirstValue;
