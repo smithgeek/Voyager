@@ -61,10 +61,7 @@ namespace RazoreApp
 			{
 				options.Conventions.AuthorizeFolder("/admin");
 			});
-			services.AddVoyager(c =>
-			{
-				c.AddAssemblyWith<Shared.GetWeatherForecast.GetWeatherForecastRequest>();
-			});
+			Shared.Configure.ConfigureServices(services);
 		}
 	}
 }

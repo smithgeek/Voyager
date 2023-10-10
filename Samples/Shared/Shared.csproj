@@ -2,6 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFramework>net7.0</TargetFramework>
+		<Nullable>enable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -10,5 +11,9 @@
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.3.1" />
 		<ProjectReference Include="..\..\src\Voyager.Swashbuckle\Voyager.Swashbuckle.csproj" />
 		<ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
 	</ItemGroup>
 </Project>

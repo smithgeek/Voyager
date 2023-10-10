@@ -2,15 +2,19 @@
 
 namespace Shared.TestEndpoint
 {
-	[VoyagerRoute(HttpMethod.Get, "/test")]
+	[VoyagerRoute(HttpMethod.Post, "/test")]
 	public class TestEndpointRequest : EndpointRequest<TestEndpointResponse>
 	{
-		public int NotUsed { get; set; }
+		[FromBody("abc")]
+		public required int NotUsed { get; init; }
+
+		public required string Other { get; init; }
 	}
 
 	public class TestEndpointResponse
 	{
-		public string Id { get; set; }
-		public string Status { get; set; }
+		public required string Id { get; set; }
+		public required string Message { get; init; }
+		public required string Status { get; set; }
 	}
 }

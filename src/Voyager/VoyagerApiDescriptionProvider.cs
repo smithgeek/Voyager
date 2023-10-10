@@ -1,96 +1,60 @@
-﻿using MediatR;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Abstractions;
+﻿using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Voyager.Api;
 
 namespace Voyager
 {
-	public class OpenApiMetadata
+	public class PropertyMetadataRepo
 	{
-		public string? AssemblyName { get; set; }
-		public string? TypeFullName { get; set; }
+		public Dictionary<Type, Dictionary<string, VoyagerApiDescription.Property>> Properties = new();
+	}
+
+	public class VoyagerApiDescription
+	{
+		public required string AssemblyName { get; set; }
+		public Type? BodyType { get; set; }
+		public required string Method { get; set; }
+		public required string Path { get; set; }
+		public required List<Property> Properties { get; set; }
+		public required string RequestTypeName { get; set; }
+		public required Type ResponseType { get; set; }
+
+		public class Property
+		{
+			public string? DefaultValue { get; set; }
+			public string? Description { get; set; }
+			public required string Name { get; set; }
+			public required Type ParentType { get; set; }
+			public required string PropertyName { get; set; }
+			public required string Source { get; set; }
+			public required Type Type { get; set; }
+		}
 	}
 
 	internal class VoyagerApiDescriptionProvider : IApiDescriptionProvider
 	{
 		private readonly IModelMetadataProvider modelMetadataProvider;
-		private readonly TypeBindingRepository typeBindingRepo;
-		private readonly IEnumerable<VoyagerRouteDefinition> voyagerRoutes;
+		private readonly PropertyMetadataRepo propertyMetadatRepo;
+		private readonly IEnumerable<VoyagerRouteRegistration> registrations;
 
-		public VoyagerApiDescriptionProvider(IEnumerable<VoyagerRouteDefinition> voyagerRoutes, IModelMetadataProvider modelMetadataProvider, TypeBindingRepository typeBindingRepo)
+		public VoyagerApiDescriptionProvider(IModelMetadataProvider modelMetadataProvider,
+			List<VoyagerRouteRegistration> registrations, PropertyMetadataRepo propertyMetadatRepo)
 		{
-			this.voyagerRoutes = voyagerRoutes;
 			this.modelMetadataProvider = modelMetadataProvider;
-			this.typeBindingRepo = typeBindingRepo;
+			this.registrations = registrations;
+			this.propertyMetadatRepo = propertyMetadatRepo;
 		}
 
 		public int Order => 0;
 
 		public void OnProvidersExecuted(ApiDescriptionProviderContext context)
 		{
-			var typeProvider = new DynamicTypeBuilder(typeBindingRepo);
-			foreach (var route in voyagerRoutes)
+			foreach (var registration in registrations)
 			{
-				var path = $"{route.Template}";
-				var descriptor = new ApiDescription
-				{
-					HttpMethod = route.Method,
-					ActionDescriptor = new Microsoft.AspNetCore.Mvc.Abstractions.ActionDescriptor
-					{
-						RouteValues = new Dictionary<string, string?>()
-					},
-					RelativePath = path,
-				};
-				var validBindingSources = new[] { BindingSource.Form, BindingSource.Query, BindingSource.Path };
-				foreach (var property in typeBindingRepo.GetProperties(route.RequestType))
-				{
-					if (validBindingSources.Contains(property.BindingSource))
-					{
-						descriptor.ParameterDescriptions.Add(new ApiParameterDescription
-						{
-							Name = property.Name.ToLower(),
-							Type = property.Property.PropertyType,
-							Source = property.BindingSource ?? BindingSource.Custom,
-							ParameterDescriptor = new Microsoft.AspNetCore.Mvc.Abstractions.ParameterDescriptor { Name = property.Description }
-						});
-					}
-				}
-
-				var requestBodyType = typeProvider.CreateBodyType(route.RequestType);
-				if (requestBodyType != null)
-				{
-					var requestModel = modelMetadataProvider.GetMetadataForType(requestBodyType);
-					descriptor.ParameterDescriptions.Add(new ApiParameterDescription
-					{
-						Type = requestBodyType,
-						Source = BindingSource.Body,
-						ModelMetadata = requestModel
-					});
-				}
-				descriptor.ActionDescriptor.SetProperty(new OpenApiMetadata
-				{
-					AssemblyName = route.RequestType.Assembly.GetName().Name,
-					TypeFullName = route.RequestType.FullName
-				});
-				descriptor.ActionDescriptor.RouteValues["controller"] = GetTopRoute(path);
-				descriptor.SupportedRequestFormats.Add(new ApiRequestFormat { MediaType = "application/json" });
-				var responseType = GetResponseType(route.RequestType);
-				if (responseType != null)
-				{
-					var response = new ApiResponseType
-					{
-						StatusCode = 200,
-						ModelMetadata = modelMetadataProvider.GetMetadataForType(responseType)
-					};
-					response.ApiResponseFormats.Add(new ApiResponseFormat { MediaType = "application/json" });
-					descriptor.SupportedResponseTypes.Add(response);
-				}
-				context.Results.Add(descriptor);
+				context.Results.Add(CreateApiDescription(registration.DescriptionFactory()));
 			}
 		}
 
@@ -98,27 +62,84 @@ namespace Voyager
 		{
 		}
 
-		private Type? GetResponseType(Type requestType)
+		private static BindingSource GetBindingSource(string source)
 		{
-			var request = requestType.GetInterfaces().FirstOrDefault(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(IRequest<>));
-			if (request != null)
+			return source switch
 			{
-				var returnType = request.GetGenericArguments()[0];
-				if (returnType.IsGenericType && returnType.GetGenericTypeDefinition() == typeof(ActionResult<>))
-				{
-					return returnType.GetGenericArguments()[0];
-				}
-			}
-			return null;
+				"Path" => BindingSource.Path,
+				"Query" => BindingSource.Query,
+				"Form" => BindingSource.Form,
+				_ => BindingSource.Body,
+			};
 		}
 
-		private string GetTopRoute(string template)
+		private static string GetTopRoute(string template)
 		{
-			if (template.Contains("/"))
+			if (template.Contains('/'))
 			{
-				return template.Substring(0, template.IndexOf('/'));
+				return template[..template.IndexOf('/')];
 			}
 			return template;
+		}
+
+		private ApiDescription CreateApiDescription(VoyagerApiDescription apiDescription)
+		{
+			var descripton = new ApiDescription
+			{
+				HttpMethod = apiDescription.Method,
+				ActionDescriptor = new ActionDescriptor
+				{
+					RouteValues = new Dictionary<string, string?>()
+				},
+				RelativePath = apiDescription.Path,
+			};
+			foreach (var property in apiDescription.Properties.Where(p => p.Source != "Body"))
+			{
+				var parameter = new ApiParameterDescription
+				{
+					Name = property.Name.ToLower(),
+					Type = property.Type,
+					Source = GetBindingSource(property.Source),
+					ParameterDescriptor = new ParameterDescriptor
+					{
+						Name = property.Description ?? string.Empty,
+					},
+					ModelMetadata = property.ParentType != null
+						? modelMetadataProvider.GetMetadataForProperty(property.ParentType, property.PropertyName)
+						: modelMetadataProvider.GetMetadataForType(property.Type),
+					DefaultValue = property.DefaultValue,
+				};
+
+				descripton.ParameterDescriptions.Add(parameter);
+				if (!propertyMetadatRepo.Properties.ContainsKey(property.ParentType))
+				{
+					propertyMetadatRepo.Properties[property.ParentType] = new Dictionary<string, VoyagerApiDescription.Property>();
+				}
+				propertyMetadatRepo.Properties[property.ParentType][property.PropertyName] = property;
+			}
+			if (apiDescription.BodyType != null)
+			{
+				descripton.ParameterDescriptions.Add(new ApiParameterDescription
+				{
+					Type = apiDescription.BodyType,
+					Source = BindingSource.Body,
+					ModelMetadata = modelMetadataProvider.GetMetadataForType(apiDescription.BodyType)
+				});
+			}
+			descripton.ActionDescriptor.SetProperty(apiDescription);
+			descripton.ActionDescriptor.RouteValues["controller"] = GetTopRoute(apiDescription.Path);
+			descripton.SupportedRequestFormats.Add(new ApiRequestFormat { MediaType = "application/json" });
+			if (apiDescription.ResponseType != null)
+			{
+				var response = new ApiResponseType
+				{
+					StatusCode = 200,
+					ModelMetadata = modelMetadataProvider.GetMetadataForType(apiDescription.ResponseType)
+				};
+				response.ApiResponseFormats.Add(new ApiResponseFormat { MediaType = "application/json" });
+				descripton.SupportedResponseTypes.Add(response);
+			}
+			return descripton;
 		}
 	}
 }

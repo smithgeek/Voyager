@@ -2,11 +2,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Voyager;
 using Voyager.Api;
 
 namespace Shared.GetWeatherForecast
 {
-	public class GetWeatherForecastHandler : EndpointHandler<GetWeatherForecastRequest, IEnumerable<GetWeatherForecastResponse>>
+	public class GetWeatherForecastHandler : EndpointHandler<GetWeatherForecastRequest, IEnumerable<GetWeatherForecastResponse>>, IInjectHttpContext
 	{
 		private static readonly string[] Summaries = new[]
 		{

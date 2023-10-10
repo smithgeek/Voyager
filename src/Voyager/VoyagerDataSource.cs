@@ -18,12 +18,12 @@ namespace Voyager
 	public class VoyagerDataSource : EndpointDataSource
 	{
 		private readonly VoyagerMapOptions mapOptions;
-		private readonly IEnumerable<VoyagerRouteDefinition> voyagerRoutes;
+		private readonly IEnumerable<VoyagerRouteRegistration> routeDefinitions;
 
-		public VoyagerDataSource(IEnumerable<VoyagerRouteDefinition> voyagerRoutes, VoyagerMapOptions mapOptions)
+		public VoyagerDataSource(VoyagerMapOptions mapOptions, List<VoyagerRouteRegistration> routeDefinitions)
 		{
-			this.voyagerRoutes = voyagerRoutes;
 			this.mapOptions = mapOptions;
+			this.routeDefinitions = routeDefinitions;
 		}
 
 		public override IReadOnlyList<Endpoint> Endpoints
@@ -31,15 +31,17 @@ namespace Voyager
 			get
 			{
 				var endpoints = new List<Endpoint>();
-				foreach (var voyagerRoute in voyagerRoutes)
+				foreach (var routeDefinition in routeDefinitions)
 				{
-					var builder = new RouteEndpointBuilder(c => Route(voyagerRoute.RequestType, c), RoutePatternFactory.Parse($"{mapOptions.Prefix}{voyagerRoute.Template}"), 0);
-					builder.Metadata.Add(new HttpMethodMetadata(new[] { voyagerRoute.Method }));
-					foreach (var attribute in voyagerRoute.RequestType.GetCustomAttributes(false))
+					var route = routeDefinition.RouteDefinition;
+					var builder = new RouteEndpointBuilder(c => RouteSourceGenerator(routeDefinition, c),
+						RoutePatternFactory.Parse($"{mapOptions.Prefix.TrimEnd('/')}/{route.Template.TrimStart('/')}"), 0);
+					builder.Metadata.Add(new HttpMethodMetadata(new[] { route.Method }));
+					foreach (var attribute in route.RequestType.GetCustomAttributes(false))
 					{
 						builder.Metadata.Add(attribute);
 					}
-					var policies = voyagerRoute.RequestType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
+					var policies = route.RequestType.GetInterfaces().Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(Enforce<>));
 					foreach (var policy in policies.Select(p => p.GetGenericArguments()[0].FullName))
 					{
 						if (policy != null)
@@ -59,19 +61,29 @@ namespace Voyager
 			return new CancellationChangeToken(CancellationToken.None);
 		}
 
-		private async Task Route(Type requestType, HttpContext context)
+		private static async Task RouteSourceGenerator(VoyagerRouteRegistration registration, HttpContext context)
 		{
-			var modelBinder = context.RequestServices.GetRequiredService<ModelBinder>();
-			var mediatorRequest = await modelBinder.Bind(context, requestType);
 			var sender = context.RequestServices.GetService<ISender>();
-			if (sender != null && mediatorRequest != null)
+			if (sender != null)
 			{
-				var response = await sender.Send(mediatorRequest);
-				if (response != null)
+				var dataProvider = new DataProvider(context);
+				var request = await registration.RequestFactory(dataProvider);
+				if (request != null)
 				{
-					await context.WriteResultAsync(response);
+					var response = await sender.Send(request);
+					if (response != null)
+					{
+						await context.WriteResultAsync(response);
+					}
 				}
 			}
 		}
+	}
+
+	public class VoyagerRouteRegistration
+	{
+		public required Func<VoyagerApiDescription> DescriptionFactory { get; init; }
+		public required Func<DataProvider, Task<object?>> RequestFactory { get; init; }
+		public required VoyagerRouteDefinition RouteDefinition { get; init; }
 	}
 }

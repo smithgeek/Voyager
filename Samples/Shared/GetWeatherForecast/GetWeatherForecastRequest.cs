@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using FluentValidation;
+using System.Collections.Generic;
 using Voyager.Api;
 using Voyager.Api.Authorization;
 
@@ -12,5 +13,10 @@ namespace Shared.GetWeatherForecast
 
 		[FromQuery("d")]
 		public int Days { get; set; } = 5;
+
+		public static void AddValidationRules(AbstractValidator<GetWeatherForecastRequest> validator)
+		{
+			validator.RuleFor(r => r.Days).GreaterThanOrEqualTo(1);
+		}
 	}
 }

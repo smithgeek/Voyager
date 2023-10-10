@@ -9,7 +9,6 @@
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.3.1" />
 	</ItemGroup>
 	<ItemGroup>
-		<ProjectReference Include="..\..\src\Voyager.Azure.Functions\Voyager.Azure.Functions.csproj" />
 		<ProjectReference Include="..\Shared\Shared.csproj" />
 		<ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
 	</ItemGroup>

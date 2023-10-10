@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
 using Voyager;
+using Voyager.AssemblyFactories;
 
 namespace Shared
 {

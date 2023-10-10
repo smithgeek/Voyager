@@ -14,10 +14,10 @@ namespace Voyager.Swashbuckle
 	{
 		public void Apply(OpenApiOperation operation, OperationFilterContext context)
 		{
-			var metadata = context.ApiDescription.ActionDescriptor.GetProperty<OpenApiMetadata>();
+			var metadata = context.ApiDescription.ActionDescriptor.GetProperty<VoyagerApiDescription>();
 			if (metadata != null)
 			{
-				operation.OperationId = metadata.TypeFullName.Split(new[] { "." }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
+				operation.OperationId = metadata.RequestTypeName.Split(new[] { "." }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault();
 				if (operation.OperationId?.EndsWith("Request") ?? false)
 				{
 					operation.OperationId = operation.OperationId.Replace("Request", "");
@@ -27,7 +27,7 @@ namespace Voyager.Swashbuckle
 				if (File.Exists(xmlPath))
 				{
 					var doc = XDocument.Load(xmlPath);
-					var member = doc.Root?.XPathSelectElement($"/doc/members/member[@name=\"T:{metadata.TypeFullName}\"]");
+					var member = doc.Root?.XPathSelectElement($"/doc/members/member[@name=\"T:{metadata.RequestTypeName}\"]");
 					operation.Description = member?.XPathSelectElement("summary")?.Value.Trim() ?? " ";
 				}
 			}

@@ -11,11 +11,9 @@ namespace Shared.TestEndpoint
 		{
 		}
 
-		public new HttpContext HttpContext { get; set; }
-
 		public override ActionResult<TestEndpointResponse> HandleRequest(TestEndpointRequest request)
 		{
-			return new TestEndpointResponse { Status = "Success", Id = HttpContext.TraceIdentifier };
+			return new TestEndpointResponse { Status = "Success", Id = HttpContext.TraceIdentifier, Message = $"{request.Other} {request.NotUsed}" };
 		}
 	}
 }

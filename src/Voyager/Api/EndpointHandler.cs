@@ -12,6 +12,7 @@ namespace Voyager.Api
 	public abstract class EndpointHandler<TRequest> : IEndpointHandler<TRequest>, IInjectHttpContext
 			where TRequest : IRequest<IActionResult>
 	{
+		[VoyagerInject]
 		public virtual HttpContext? HttpContext { get; set; }
 
 		public virtual ClaimsPrincipal? User { get => HttpContext?.User; }
@@ -93,6 +94,7 @@ namespace Voyager.Api
 	public abstract class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>, IInjectHttpContext
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
+		[VoyagerInject]
 		public virtual HttpContext? HttpContext { get; set; }
 
 		public virtual ClaimsPrincipal? User { get => HttpContext?.User; }
@@ -175,4 +177,8 @@ namespace Voyager.Api
 			return Unauthorized(await details);
 		}
 	}
+
+	[AttributeUsage(AttributeTargets.Property)]
+	public class VoyagerInjectAttribute : Attribute
+	{ }
 }

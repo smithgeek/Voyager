@@ -10,12 +10,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Api\" />
+		<Folder Include="Api\" />
 	</ItemGroup>
 
 	<ItemGroup>
-	  <PackageReference Include="Swashbuckle.AspNetCore" Version="6.3.1" />
+		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.3.1" />
 	</ItemGroup>
 
-
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj"
+						  OutputItemType="Analyzer"
+						  ReferenceOutputAssembly="false" />
+	</ItemGroup>
 </Project>
