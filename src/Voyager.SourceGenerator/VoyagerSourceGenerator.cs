@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -191,6 +192,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	private string EndpointMapping(GeneratorExecutionContext context)
 	{
+		var requestBodies = new StringBuilder();
 		var code = new StringBuilder();
 		code.AppendLine("\tpublic static class VoyagerEndpoints");
 		code.AppendLine("\t{");
@@ -242,7 +244,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				var requestType = string.Empty;
 				if (requestTypeSyntax is IdentifierNameSyntax name)
 				{
-					requestType = name.Identifier.ToFullString();
+					requestType = name.Identifier.ToFullString().Trim();
 					var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
 					var requestObject = ParseRequestObject(requestTypeInfo);
 
@@ -259,7 +261,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					code.AppendLine("\t\t\t\tvar dataProvider = new DataProvider(context);");
 					if (hasBody)
 					{
-						code.AppendLine("\t\t\t\tvar body = await dataProvider.GetBody<RequestBody>();");
+						code.AppendLine($"\t\t\t\tvar body = await dataProvider.GetBody<{requestType}Body>();");
+						requestBodies.AppendLine($"\t\tpublic class {requestType}Body");
+						requestBodies.AppendLine("\t\t{");
 					}
 					code.AppendLine($"\t\t\t\tvar request = new {requestType}");
 					code.AppendLine("\t\t\t\t{");
@@ -268,11 +272,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						if (property.DataSource == PropertyDataSource.Body)
 						{
 							code.AppendLine($"\t\t\t\t\t{property.Property.Name} = body.{property.SourceName},");
+							requestBodies.AppendLine($"\t\t\t{property.Property.Type} {property.SourceName} {{ get; set; }}");
 						}
 						else
 						{
 							code.AppendLine($"\t\t\t\t\t{property.Property.Name} = {GetPropertyAssignment(property)},");
 						}
+					}
+					if (hasBody)
+					{
+						requestBodies.AppendLine("\t\t}");
 					}
 					code.AppendLine("\t\t\t\t};");
 					if (isTask)
@@ -289,6 +298,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 
 		code.AppendLine("\t\t}");
+		code.AppendLine();
+		code.Append(requestBodies);
 		code.AppendLine("\t}");
 		return code.ToString();
 	}
@@ -371,7 +382,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		var endpoints = EndpointMapping(context);
 
+
 		var referencedFactories = GetFactoryTypes(context);
+		return;
 
 		var allNodes = context.Compilation.SyntaxTrees.SelectMany(s => s.GetRoot().DescendantNodes());
 		var allClasses = allNodes

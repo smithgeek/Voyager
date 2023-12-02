@@ -36,7 +36,7 @@ namespace Shared
 		public static void ConfigureServices(IServiceCollection services)
 		{
 			services.AddControllers();
-			services.AddVoyager();
+			//services.AddVoyager();
 
 			services.AddSwaggerGen(c =>
 			{
