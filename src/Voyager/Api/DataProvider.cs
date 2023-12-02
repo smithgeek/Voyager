@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -29,41 +31,64 @@ namespace Voyager.Api
 			return bodyValueProvider.ParseBody<TValue>();
 		}
 
-		public async Task<TValue?> GetBodyValue<TValue>(string key)
+		public async ValueTask<TValue?> GetBodyValue<TValue>(string key)
 		{
 			bodyValueProvider ??= new JsonElementValueProvider(httpContext, GetJsonOptions());
 			return await bodyValueProvider.GetValue<TValue>(key);
 		}
 
-		public Task<TValue?> GetFormValue<TValue>(string key)
+		public ValueTask<TValue?> GetFormValue<TValue>(string key)
 		{
 			formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
-			return Convert<TValue>(formValueProvider.GetValue(key).FirstValue ?? string.Empty);
+			return ConvertTask<TValue>(formValueProvider.GetValue(key).FirstValue);
 		}
 
-		public Task<TValue?> GetQueryStringValue<TValue>(string key)
+		public ValueTask<IEnumerable<TValue?>> GetFormValues<TValue>(string key)
+		{
+			formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
+			return ValueTask.FromResult(formValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		}
+
+		public ValueTask<TValue?> GetQueryStringValue<TValue>(string key)
 		{
 			queryStringValueProvider ??= new QueryStringValueProvider(BindingSource.Query, httpContext.Request.Query, CultureInfo.InvariantCulture);
-			return Convert<TValue>(queryStringValueProvider.GetValue(key).FirstValue);
+			return ConvertTask<TValue>(queryStringValueProvider.GetValue(key).FirstValue);
 		}
 
-		public Task<TValue?> GetRouteValue<TValue>(string key)
+		public ValueTask<IEnumerable<TValue?>> GetQueryStringValues<TValue>(string key)
+		{
+			queryStringValueProvider ??= new QueryStringValueProvider(BindingSource.Query, httpContext.Request.Query, CultureInfo.InvariantCulture);
+			return ValueTask.FromResult(queryStringValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		}
+
+		public ValueTask<TValue?> GetRouteValue<TValue>(string key)
 		{
 			routeValueProvider ??= new RouteValueProvider(BindingSource.Path, httpContext.Request.RouteValues);
-			return Convert<TValue>(routeValueProvider.GetValue(key).FirstValue);
+			return ConvertTask<TValue>(routeValueProvider.GetValue(key).FirstValue);
 		}
 
-		private Task<TValue?> Convert<TValue>(string? value)
+		public ValueTask<IEnumerable<TValue?>> GetRouteValues<TValue>(string key)
+		{
+			routeValueProvider ??= new RouteValueProvider(BindingSource.Path, httpContext.Request.RouteValues);
+			return ValueTask.FromResult(routeValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		}
+
+		private ValueTask<TValue?> ConvertTask<TValue>(string? value)
+		{
+			return ValueTask.FromResult(Convert<TValue>(value));
+		}
+
+		private TValue? Convert<TValue>(string? value)
 		{
 			if (value is TValue tValue)
 			{
-				return Task.FromResult<TValue?>(tValue);
+				return tValue;
 			}
 			if (value is null || value == string.Empty)
 			{
-				return Task.FromResult(default(TValue?));
+				return default;
 			}
-			return Task.FromResult(JsonSerializer.Deserialize<TValue>(value, GetJsonOptions()));
+			return JsonSerializer.Deserialize<TValue>(value, GetJsonOptions());
 		}
 
 		private JsonSerializerOptions GetJsonOptions()

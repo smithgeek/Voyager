@@ -1,12 +1,13 @@
-﻿using Voyager.Api;
+﻿using System.Collections.Generic;
+using Voyager.Api;
 
 namespace Shared.TestEndpoint
 {
-	[VoyagerRoute(HttpMethod.Post, "/test")]
+	//[VoyagerRoute(HttpMethod.Post, "/test")]
 	public class TestEndpointRequest : EndpointRequest<TestEndpointResponse>
 	{
-		[FromBody("abc")]
-		public required int NotUsed { get; init; }
+		[FromQuery("abc")]
+		public required IEnumerable<int> List { get; init; }
 
 		public required string Other { get; init; }
 	}

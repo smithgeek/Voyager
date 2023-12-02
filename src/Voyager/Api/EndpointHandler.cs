@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Voyager.Api
 {
-	public abstract class EndpointHandler<TRequest> : IEndpointHandler<TRequest>, IInjectHttpContext
+	public abstract class EndpointHandler<TRequest> : IEndpointHandler<TRequest>
 			where TRequest : IRequest<IActionResult>
 	{
 		[VoyagerInject]
@@ -91,7 +91,7 @@ namespace Voyager.Api
 		}
 	}
 
-	public abstract class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>, IInjectHttpContext
+	public abstract class EndpointHandler<TRequest, TResponse> : IEndpointHandler<TRequest, TResponse>
 		where TRequest : IRequest<ActionResult<TResponse>>
 	{
 		[VoyagerInject]

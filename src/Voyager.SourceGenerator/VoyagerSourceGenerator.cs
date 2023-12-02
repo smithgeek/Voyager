@@ -1,8 +1,11 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Voyager.SourceGenerator;
 
@@ -186,8 +189,188 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		return builder.ToString();
 	}
 
+	private string EndpointMapping(GeneratorExecutionContext context)
+	{
+		var code = new StringBuilder();
+		code.AppendLine("\tpublic static class VoyagerEndpoints");
+		code.AppendLine("\t{");
+		code.AppendLine("\t\tpublic static void AddVoyager(this IEndpointRouteBuilder routes)");
+		code.AppendLine("\t\t{");
+		var treesWithClassesWithAttributes = context.Compilation.SyntaxTrees.Where(
+			st => st.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
+				.Any(p => p.DescendantNodes().OfType<AttributeSyntax>().Any()));
+
+		foreach (var tree in treesWithClassesWithAttributes)
+		{
+			var semanticModel = context.Compilation.GetSemanticModel(tree);
+
+			var classesWithAttributes = tree
+						.GetRoot()
+						.DescendantNodes()
+						.OfType<ClassDeclarationSyntax>()
+						.Where(cd => cd.DescendantNodes().OfType<AttributeSyntax>().Any());
+
+			foreach (var @class in classesWithAttributes)
+			{
+				var attribute = @class
+					.DescendantNodes()
+					.OfType<AttributeSyntax>()
+					.FirstOrDefault(a => a.DescendantTokens().Any(dt =>
+					{
+						if (dt.Parent != null)
+						{
+							var model = semanticModel.GetTypeInfo(dt.Parent);
+							return dt.IsKind(SyntaxKind.IdentifierToken)
+								&& $"{model.Type?.ContainingNamespace}.{model.Type?.Name}" == "Voyager.Api.VoyagerEndpointAttribute";
+						}
+						return false;
+					}));
+				if (@class is null)
+				{
+					continue;
+				}
+				var handleMethod = @class.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
+					.Where(m => m.Identifier.ToString() == "Handle").FirstOrDefault();
+				if (handleMethod is null)
+				{
+					continue;
+				}
+				var returnType = semanticModel.GetTypeInfo(handleMethod.ReturnType);
+				var isTask = $"{returnType.Type?.ContainingNamespace}.{returnType.Type?.Name}" == "System.Threading.Tasks.Task";
+
+				var requestTypeSyntax = handleMethod.ParameterList.Parameters.First().Type;
+				var requestType = string.Empty;
+				if (requestTypeSyntax is IdentifierNameSyntax name)
+				{
+					requestType = name.Identifier.ToFullString();
+					var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
+					var requestObject = ParseRequestObject(requestTypeInfo);
+
+
+					var classModel = semanticModel.GetTypeInfo(@class);
+					var httpMethod = attribute.ArgumentList?.Arguments[0].DescendantTokens().Last().ToString();
+					var path = attribute.ArgumentList?.Arguments[1].DescendantTokens().First().ToString();
+
+					var hasBody = requestObject.Properties.Any(p => p.DataSource == PropertyDataSource.Body);
+
+					code.AppendLine($"\t\t\troutes.Map{httpMethod}({path}, context =>");
+					code.AppendLine("\t\t\t{");
+					code.AppendLine($"\t\t\t\tvar endpoint = context.RequestServices.GetRequiredService<{@class.Identifier.ValueText}>();");
+					code.AppendLine("\t\t\t\tvar dataProvider = new DataProvider(context);");
+					if (hasBody)
+					{
+						code.AppendLine("\t\t\t\tvar body = await dataProvider.GetBody<RequestBody>();");
+					}
+					code.AppendLine($"\t\t\t\tvar request = new {requestType}");
+					code.AppendLine("\t\t\t\t{");
+					foreach (var property in requestObject.Properties)
+					{
+						if (property.DataSource == PropertyDataSource.Body)
+						{
+							code.AppendLine($"\t\t\t\t\t{property.Property.Name} = body.{property.SourceName},");
+						}
+						else
+						{
+							code.AppendLine($"\t\t\t\t\t{property.Property.Name} = {GetPropertyAssignment(property)},");
+						}
+					}
+					code.AppendLine("\t\t\t\t};");
+					if (isTask)
+					{
+						code.AppendLine("\t\t\t\treturn endpoint.Handle(request);");
+					}
+					else
+					{
+						code.AppendLine("\t\t\t\treturn Task.FromResult(endpoint.Handle(request));");
+					}
+					code.AppendLine("\t\t\t});");
+				}
+			}
+		}
+
+		code.AppendLine("\t\t}");
+		code.AppendLine("\t}");
+		return code.ToString();
+	}
+
+	internal class RequestProperty
+	{
+		public IPropertySymbol Property { get; set; }
+		public AttributeData? Attribute { get; set; }
+		public PropertyDataSource DataSource { get; set; } = PropertyDataSource.Body;
+		public string SourceName
+		{
+			get
+			{
+				if (Attribute != null && Attribute.ConstructorArguments.Length > 0)
+				{
+					return Attribute.ConstructorArguments[0].Value?.ToString() ?? Property.Name;
+				}
+				return Property.Name;
+			}
+		}
+
+		public RequestProperty(IPropertySymbol property)
+		{
+			Property = property;
+		}
+	}
+
+	internal class RequestObject
+	{
+		public List<RequestProperty> Properties { get; set; } = new();
+	}
+
+	RequestObject ParseRequestObject(Microsoft.CodeAnalysis.TypeInfo requestType)
+	{
+		var requestObject = new RequestObject();
+		var properties = requestType.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
+		foreach (var property in properties.OfType<IPropertySymbol>())
+		{
+			RequestProperty? requestProperty = null;
+			foreach (var attribute in property.GetAttributes())
+			{
+				if (attribute.AttributeClass?.Name == "FromQueryAttribute")
+				{
+					requestProperty = new RequestProperty(property)
+					{
+						Attribute = attribute,
+						DataSource = PropertyDataSource.Query
+					};
+					break;
+				}
+				if (attribute.AttributeClass?.Name == "FromRouteAttribute")
+				{
+					requestProperty = new RequestProperty(property)
+					{
+						Attribute = attribute,
+						DataSource = PropertyDataSource.Route
+					};
+					break;
+				}
+				if (attribute.AttributeClass?.Name == "FromFormAttribute")
+				{
+					requestProperty = new RequestProperty(property)
+					{
+						Attribute = attribute,
+						DataSource = PropertyDataSource.Form
+					};
+					break;
+				}
+			}
+			requestProperty ??= new RequestProperty(property)
+			{
+				DataSource = PropertyDataSource.Body
+			};
+			requestObject.Properties.Add(requestProperty);
+		}
+		return requestObject;
+	}
+
 	public void Execute(GeneratorExecutionContext context)
 	{
+		var endpoints = EndpointMapping(context);
+
 		var referencedFactories = GetFactoryTypes(context);
 
 		var allNodes = context.Compilation.SyntaxTrees.SelectMany(s => s.GetRoot().DescendantNodes());
@@ -482,16 +665,46 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		return string.Empty;
 	}
 
+	private readonly Regex enumerableRegex = new(@"IEnumerable<(.+)>", RegexOptions.Compiled);
+
 	private string GetPropertyAssignment(PropertyDeclaration property)
 	{
+		var isEnumerable = enumerableRegex.Match(property.TypeName);
+		var suffix = isEnumerable.Success ? "s" : "";
+		var typeName = property.TypeName;
+		if (isEnumerable.Success)
+		{
+			typeName = isEnumerable.Groups[1].Value;
+		}
 		var providerFunction = property.DataSource switch
 		{
-			PropertyDataSource.Query => "GetQueryStringValue",
-			PropertyDataSource.Route => "GetRouteValue",
-			PropertyDataSource.Form => "GetRouteValue",
+			PropertyDataSource.Query => $"GetQueryStringValue{suffix}",
+			PropertyDataSource.Route => $"GetRouteValue{suffix}",
+			PropertyDataSource.Form => $"GetRouteValue{suffix}",
 			_ => "GetBodyValue",
 		};
-		return $"await dataProvider.{providerFunction}<{property.TypeName}>(\"{property.Name}\")";
+		return $"await dataProvider.{providerFunction}<{typeName}>(\"{property.Name}\")";
+	}
+
+	private string GetPropertyAssignment(RequestProperty property)
+	{
+		var parts = property.Property.Type.ToDisplayParts();
+		var typeName = property.Property.Type.Name;
+		var isEnumerable = typeName == "IEnumerable";
+		var suffix = isEnumerable ? "s" : "";
+
+		if (isEnumerable)
+		{
+			typeName = parts.Reverse().Skip(1).First().ToString();
+		}
+		var providerFunction = property.DataSource switch
+		{
+			PropertyDataSource.Query => $"GetQueryStringValue{suffix}",
+			PropertyDataSource.Route => $"GetRouteValue{suffix}",
+			PropertyDataSource.Form => $"GetRouteValue{suffix}",
+			_ => "GetBodyValue",
+		};
+		return $"await dataProvider.{providerFunction}<{typeName}>(\"{property.SourceName}\")";
 	}
 
 	private string GetBindingSource(PropertyDeclaration property)

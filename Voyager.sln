@@ -28,7 +28,9 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.Swashbuckle", "src\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.SourceGenerator", "src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj", "{FDC52B00-A056-4AE5-83A0-738C245C0A90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Benchmarks", "Benchmarks\Benchmarks.csproj", "{7081972E-FC83-41B6-86AC-8F0B1F690586}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Benchmarks", "Benchmarks\Benchmarks.csproj", "{7081972E-FC83-41B6-86AC-8F0B1F690586}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MinimalApi", "Samples\MinimalApi\MinimalApi.csproj", "{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -68,6 +70,10 @@ Global
 		{7081972E-FC83-41B6-86AC-8F0B1F690586}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7081972E-FC83-41B6-86AC-8F0B1F690586}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7081972E-FC83-41B6-86AC-8F0B1F690586}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -80,6 +86,7 @@ Global
 		{59EAD153-C6BD-4A98-BB92-ACF9977A4219} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
 		{20B6227D-5A87-4A84-9F51-2FB3300713CD} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
 		{FDC52B00-A056-4AE5-83A0-738C245C0A90} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
+		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1A85F59D-8A0C-422D-B7D6-326C61D9328B}
