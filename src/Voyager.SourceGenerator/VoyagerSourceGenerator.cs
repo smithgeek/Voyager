@@ -257,6 +257,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 
 					var classModel = semanticModel.GetDeclaredSymbol(@class);
+					
 					var httpMethod = attribute.ArgumentList?.Arguments[0].DescendantTokens().Last().ToString();
 					var path = attribute.ArgumentList?.Arguments[1].DescendantTokens().First().ToString();
 
