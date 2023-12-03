@@ -7,9 +7,18 @@ namespace Shared
 {
 	public static class Configure
 	{
+		public static void Configure2(WebApplication webApplication)
+		{
+			webApplication.MapVoyager();
+		}
+
+		public static void Configure2Services(IServiceCollection services)
+		{
+			services.AddVoyager();
+		}
+
 		public static void ConfigureApp(IApplicationBuilder app)
 		{
-			app.UseVoyagerExceptionHandler();
 			app.UseHttpsRedirection();
 
 			app.UseRouting();
@@ -27,7 +36,6 @@ namespace Shared
 			app.UseMiddleware<SampleMiddleware>();
 			app.UseEndpoints(endpoints =>
 			{
-				endpoints.MapVoyager(new VoyagerMapOptions { Prefix = "api" });
 				endpoints.MapControllers();
 			});
 		}
@@ -35,12 +43,11 @@ namespace Shared
 		public static void ConfigureServices(IServiceCollection services)
 		{
 			services.AddControllers();
-			services.AddVoyager();
+			//services.AddVoyager();
 
 			services.AddSwaggerGen(c =>
 			{
 				c.SwaggerDoc("v1", new OpenApiInfo { Title = "Voyager Api", Version = "v1" });
-				c.AddVoyager();
 			});
 		}
 	}

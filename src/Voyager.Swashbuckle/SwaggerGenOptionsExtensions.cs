@@ -9,6 +9,7 @@ namespace Microsoft.Extensions.DependencyInjection
 		{
 			options.OperationFilter<VoyagerOperationFilter>();
 			options.DocumentFilter<VoyagerDocumentFilter>();
+			options.SchemaFilter<VoyagerSchemaFilter>();
 		}
 	}
 }

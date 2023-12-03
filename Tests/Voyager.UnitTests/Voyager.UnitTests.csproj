@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net7.0</TargetFramework>
 
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -24,5 +24,11 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
   </ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj"
+						  OutputItemType="Analyzer"
+						  ReferenceOutputAssembly="false" />
+	</ItemGroup>
 
 </Project>

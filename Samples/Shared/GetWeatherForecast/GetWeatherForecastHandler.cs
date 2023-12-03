@@ -1,19 +1,19 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Voyager.Api;
+using Voyager;
 
 namespace Shared.GetWeatherForecast
 {
-	public class GetWeatherForecastHandler : EndpointHandler<GetWeatherForecastRequest, IEnumerable<GetWeatherForecastResponse>>
+	[VoyagerEndpoint("v2/WeatherForecast/{city}")]
+	public class GetWeatherForecastHandler
 	{
 		private static readonly string[] Summaries = new[]
 		{
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
 
-		public override ActionResult<IEnumerable<GetWeatherForecastResponse>> HandleRequest(GetWeatherForecastRequest request)
+		public IEnumerable<GetWeatherForecastResponse> Get(GetWeatherForecastRequest request)
 		{
 			if (request.Days < 1)
 			{

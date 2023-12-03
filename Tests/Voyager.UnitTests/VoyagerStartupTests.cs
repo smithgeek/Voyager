@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
+using System.Threading.Tasks;
 using Voyager.Api.Authorization;
+using Voyager.AssemblyFactories;
 using Voyager.Middleware;
 using Xunit;
 
@@ -29,27 +30,37 @@ namespace Voyager.UnitTests
 		}
 	}
 
-	public class CustomAppRequirement : IAuthorizationRequirement { }
+	public class CustomAppRequirement : IAuthorizationRequirement
+	{ }
 
 	public class VoyagerStartupTests
 	{
 		[Fact]
 		public void FindPolicies()
 		{
-			var definitions = VoyagerStartup.GetPolicies(new[] { typeof(BlankPolicy).Assembly });
+			var definitions = Voyager.AssemblyFactories.Registration.GetPolicies();
 			definitions.Count().Should().Be(2);
 		}
 
 		[Fact]
-		public void PoliciesCanBeOverwritten()
+		public async Task PoliciesCanBeOverwritten()
 		{
-			OverwritePolicy(new[] { typeof(AuthenticatedPolicyOverride).Assembly, typeof(AuthenticatedPolicy).Assembly });
-		}
+			var services = new ServiceCollection();
+			services.AddVoyager(new AddVoyagerOptions
+			{
+				RegisterPolicies = policies =>
+				{
+					policies[typeof(AuthenticatedPolicy).FullName] = new AuthenticatedPolicyOverride();
+				}
+			});
+			var providier = services.BuildServiceProvider();
+			var policyProvider = providier.GetRequiredService<IAuthorizationPolicyProvider>();
+			var policy = await policyProvider.GetPolicyAsync(typeof(AuthenticatedPolicy).FullName);
 
-		[Fact]
-		public void PoliciesCanBeOverwrittenReverseAssemblyOrder()
-		{
-			OverwritePolicy(new[] { typeof(AuthenticatedPolicy).Assembly, typeof(AuthenticatedPolicyOverride).Assembly });
+			var expectedRequirements = new AuthenticatedPolicyOverride().GetRequirements();
+			var actualRequirements = policy.Requirements;
+			actualRequirements.Count.Should().Be(1);
+			actualRequirements.First().GetType().Should().Be<CustomAppRequirement>();
 		}
 
 		[Fact]
@@ -57,20 +68,9 @@ namespace Voyager.UnitTests
 		{
 			var services = new ServiceCollection();
 			services.AddVoyager();
-			services.AddVoyager(c => c.AddAssemblyWith<BlankPolicy>());
+			services.AddVoyager();
 			var instance = services.BuildServiceProvider().GetService<ExceptionHandler>();
 			instance.Should().NotBeNull();
-		}
-
-		private void OverwritePolicy(IEnumerable<Assembly> assemblies)
-		{
-			var expectedRequirements = new AuthenticatedPolicyOverride().GetRequirements();
-			var definitions = VoyagerStartup.GetPolicies(assemblies);
-			definitions.Should().Contain(def => def.Name == typeof(AuthenticatedPolicy).FullName);
-			var actualRequirements = definitions.FirstOrDefault(def => def.Name == typeof(AuthenticatedPolicy).FullName).Policy.GetRequirements();
-			actualRequirements.Count.Should().Be(1);
-			actualRequirements.First().GetType().Should().Be<CustomAppRequirement>();
-			definitions.Should().NotContain(def => def.Name == typeof(AuthenticatedPolicyOverride).FullName);
 		}
 	}
 }

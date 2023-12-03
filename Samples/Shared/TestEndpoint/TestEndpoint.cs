@@ -1,21 +1,51 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using System.Threading;
 using Voyager;
-using Voyager.Api;
 
-namespace Shared.TestEndpoint
+namespace Shared.TestEndpoint;
+
+[VoyagerEndpoint("/test")]
+public class TestEndpointHandler
 {
-	public class TestEndpointHandler : EndpointHandler<TestEndpointRequest, TestEndpointResponse>, IInjectHttpContext
+	public required HttpContext HttpContext { get; set; }
+
+	public TestEndpointResponse Post(TestEndpointRequest request)
 	{
-		public TestEndpointHandler()
+		return new TestEndpointResponse
 		{
-		}
+			Status = "Success",
+			Id = HttpContext.TraceIdentifier,
+			Message = $"{request.Other} {string.Join(", ", request.List)}"
+		};
+	}
+}
 
-		public HttpContext HttpContext { get; set; }
+[VoyagerEndpoint("/test2")]
+public class TestEndpoint2
+{
+	private readonly IHttpContextAccessor httpContextAccessor;
 
-		public override ActionResult<TestEndpointResponse> HandleRequest(TestEndpointRequest request)
+	public TestEndpoint2(IHttpContextAccessor httpContextAccessor)
+	{
+		this.httpContextAccessor = httpContextAccessor;
+	}
+
+	public required CancellationToken CancellationToken { get; set; }
+	public required HttpContext HttpContext { get; set; }
+
+	public static void Configure(RouteHandlerBuilder builder)
+	{
+		builder.WithDescription("Some description");
+	}
+
+	public TestEndpointResponse Post(TestEndpointRequest request, HttpContext context3, CancellationToken cancel2)
+	{
+		return new TestEndpointResponse
 		{
-			return new TestEndpointResponse { Status = "Success", Id = HttpContext.TraceIdentifier };
-		}
+			Status = "Success",
+			Id = HttpContext.TraceIdentifier,
+			Message = $"{request.Other} {string.Join(", ", request.List)}"
+		};
 	}
 }

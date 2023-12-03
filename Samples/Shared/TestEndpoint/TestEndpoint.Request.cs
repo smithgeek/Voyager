@@ -1,16 +1,25 @@
-﻿using Voyager.Api;
+﻿using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
 
 namespace Shared.TestEndpoint
 {
-	[VoyagerRoute(HttpMethod.Get, "/test")]
-	public class TestEndpointRequest : EndpointRequest<TestEndpointResponse>
+	public class TestEndpointRequest
 	{
-		public int NotUsed { get; set; }
+		public required string Item1 { get; init; }
+
+		public required int Item2 { get; init; }
+
+		[FromQuery(Name = "abc")]
+		public required IEnumerable<int> List { get; init; }
+
+		[FromQuery]
+		public required string Other { get; init; }
 	}
 
 	public class TestEndpointResponse
 	{
-		public string Id { get; set; }
-		public string Status { get; set; }
+		public required string Id { get; set; }
+		public required string Message { get; init; }
+		public required string Status { get; set; }
 	}
 }

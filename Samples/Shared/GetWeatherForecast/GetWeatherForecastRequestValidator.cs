@@ -1,12 +1,10 @@
-﻿using FluentValidation;
-
-namespace Shared.GetWeatherForecast
+﻿namespace Shared.GetWeatherForecast
 {
-	public class GetWeatherForecastRequestValidator : AbstractValidator<GetWeatherForecastRequest>
-	{
-		public GetWeatherForecastRequestValidator()
-		{
-			RuleFor(r => r.Days).GreaterThanOrEqualTo(1);
-		}
-	}
+	//public class GetWeatherForecastRequestValidator : AbstractValidator<GetWeatherForecastRequest>
+	//{
+	//	public GetWeatherForecastRequestValidator()
+	//	{
+	//		RuleFor(r => r.Days).GreaterThanOrEqualTo(1);
+	//	}
+	//}
 }

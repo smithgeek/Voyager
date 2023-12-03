@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Voyager;
 
 namespace RazoreApp
 {
@@ -38,7 +37,6 @@ namespace RazoreApp
 
 			app.UseEndpoints(endpoints =>
 			{
-				endpoints.MapVoyager();
 				endpoints.MapRazorPages();
 			});
 		}
@@ -61,10 +59,7 @@ namespace RazoreApp
 			{
 				options.Conventions.AuthorizeFolder("/admin");
 			});
-			services.AddVoyager(c =>
-			{
-				c.AddAssemblyWith<Shared.GetWeatherForecast.GetWeatherForecastRequest>();
-			});
+			Shared.Configure.ConfigureServices(services);
 		}
 	}
 }
