@@ -51,7 +51,7 @@ steps:
     displayName: "dotnet pack"
     inputs:
       command: "pack"
-      packagesToPack: "src/**/*.csproj"
+      packagesToPack: "src/Voyager/Voyager.csproj"
       versioningScheme: "byEnvVar"
       versionEnvVar: "GitVersion.NuGetVersion"
 
