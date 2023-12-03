@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Threading;
 using System.Threading.Tasks;
@@ -28,9 +29,13 @@ public class TestEndpointHandler : EndpointHandler<TestEndpointRequest, TestEndp
 	}
 }
 
-[VoyagerEndpoint(HttpMethod.Post, "/test")]
+[VoyagerEndpoint(HttpMethod.Get, "/test")]
 public class TestEndpoint2
 {
+	public static void Configure(RouteHandlerBuilder builder)
+	{
+	}
+
 	public TestEndpointResponse Handle(TestEndpointRequest request)
 	{
 		return new TestEndpointResponse

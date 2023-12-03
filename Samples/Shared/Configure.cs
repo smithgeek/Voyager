@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.OpenApi.Models;
+using Shared.TestEndpoint;
 using Voyager;
 using Voyager.AssemblyFactories;
 
@@ -31,6 +32,16 @@ namespace Shared
 				endpoints.MapVoyager(new VoyagerMapOptions { Prefix = "api" });
 				endpoints.MapControllers();
 			});
+		}
+
+		public static void Configure2(WebApplication webApplication)
+		{
+			webApplication.AddVoyager();
+		}
+
+		public static void Configure2Services(IServiceCollection services)
+		{
+			services.AddTransient<TestEndpoint2>();
 		}
 
 		public static void ConfigureServices(IServiceCollection services)

@@ -1,9 +1,13 @@
-using Microsoft.AspNetCore.Http.HttpResults;
-using Voyager.Api;
+using Microsoft.AspNetCore.Mvc;
+using Shared.TestEndpoint;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+Shared.Configure.Configure2Services(builder.Services);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+builder.Services.AddHttpContextAccessor();
 
 var app = builder.Build();
 
@@ -27,29 +31,36 @@ app.MapGet("/weatherforecast", () =>
 	return forecast;
 });
 
-app.MapGet("", (context) =>
+Shared.Configure.Configure2(app);
+app.MapSwagger();
+app.UseSwagger();
+app.UseSwaggerUI();
+
+TestEndpoint2.Configure(app.MapGet("/test2", ([FromQuery] string abc, HttpContext httpContext, CancellationToken token) =>
 {
-	return new SomeHandler().Handle(new SomeRequest());
+	return new
+	{
+		test = "3"
+	};
+}));
+app.MapGet("/test4", ([AsParameters] NewRequest req) =>
+{
+	return new { test = "3" };
+}).WithOpenApi(operation =>
+{
+	operation.Parameters.Add(new Microsoft.OpenApi.Models.OpenApiParameter
+	{
+		Name = "SomeParam",
+		In = Microsoft.OpenApi.Models.ParameterLocation.Query,
+		Schema = new Microsoft.OpenApi.Models.OpenApiSchema { }
+	});
+	return operation;
 });
 
 app.Run();
+record struct NewRequest(int value1, [FromQuery] List<int> values, string strVal);
 
 internal record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
 {
 	public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
-
-public class SomeRequest
-{
-
-}
-
-[VoyagerEndpoint(Voyager.Api.HttpMethod.Get, "/test")]
-public class SomeHandler
-{
-	public async Task<Results<BadRequest, Ok<int>>> Handle(SomeRequest request)
-	{
-		await Task.Delay(100);
-		return TypedResults.Ok(3);
-	}
 }

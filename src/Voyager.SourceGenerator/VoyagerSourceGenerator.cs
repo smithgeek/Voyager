@@ -4,7 +4,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -194,6 +193,14 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		var requestBodies = new StringBuilder();
 		var code = new StringBuilder();
+		code.AppendLine("using Microsoft.AspNetCore.Builder;");
+		code.AppendLine("using Microsoft.AspNetCore.Http;");
+		code.AppendLine("using Microsoft.AspNetCore.Routing;");
+		code.AppendLine("using Microsoft.Extensions.DependencyInjection;");
+		code.AppendLine("using Voyager.Api;");
+		code.AppendLine();
+		code.AppendLine("namespace Voyager.AssemblyFactories;");
+		code.AppendLine();
 		code.AppendLine("\tpublic static class VoyagerEndpoints");
 		code.AppendLine("\t{");
 		code.AppendLine("\t\tpublic static void AddVoyager(this IEndpointRouteBuilder routes)");
@@ -249,15 +256,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					var requestObject = ParseRequestObject(requestTypeInfo);
 
 
-					var classModel = semanticModel.GetTypeInfo(@class);
+					var classModel = semanticModel.GetDeclaredSymbol(@class);
 					var httpMethod = attribute.ArgumentList?.Arguments[0].DescendantTokens().Last().ToString();
 					var path = attribute.ArgumentList?.Arguments[1].DescendantTokens().First().ToString();
 
 					var hasBody = requestObject.Properties.Any(p => p.DataSource == PropertyDataSource.Body);
 
-					code.AppendLine($"\t\t\troutes.Map{httpMethod}({path}, context =>");
+					code.AppendLine($"\t\t\troutes.Map{httpMethod}({path}, async (HttpContext context) =>");
 					code.AppendLine("\t\t\t{");
-					code.AppendLine($"\t\t\t\tvar endpoint = context.RequestServices.GetRequiredService<{@class.Identifier.ValueText}>();");
+					code.AppendLine($"\t\t\t\tvar endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
 					code.AppendLine("\t\t\t\tvar dataProvider = new DataProvider(context);");
 					if (hasBody)
 					{
@@ -265,14 +272,14 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						requestBodies.AppendLine($"\t\tpublic class {requestType}Body");
 						requestBodies.AppendLine("\t\t{");
 					}
-					code.AppendLine($"\t\t\t\tvar request = new {requestType}");
+					code.AppendLine($"\t\t\t\tvar request = new {requestTypeInfo.Type?.OriginalDefinition}");
 					code.AppendLine("\t\t\t\t{");
 					foreach (var property in requestObject.Properties)
 					{
 						if (property.DataSource == PropertyDataSource.Body)
 						{
 							code.AppendLine($"\t\t\t\t\t{property.Property.Name} = body.{property.SourceName},");
-							requestBodies.AppendLine($"\t\t\t{property.Property.Type} {property.SourceName} {{ get; set; }}");
+							requestBodies.AppendLine($"\t\t\tpublic {property.Property.Type} {property.SourceName} {{ get; set; }}");
 						}
 						else
 						{
@@ -286,12 +293,21 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					code.AppendLine("\t\t\t\t};");
 					if (isTask)
 					{
-						code.AppendLine("\t\t\t\treturn endpoint.Handle(request);");
+						code.AppendLine("\t\t\t\treturn await endpoint.Handle(request);");
 					}
 					else
 					{
-						code.AppendLine("\t\t\t\treturn Task.FromResult(endpoint.Handle(request));");
+						code.AppendLine("\t\t\t\treturn endpoint.Handle(request);");
 					}
+					code.AppendLine("\t\t\t}).WithOpenApi(operation =>");
+					code.AppendLine("\t\t\t{");
+					foreach (var property in requestObject.Properties.Where(p =>
+					p.DataSource == PropertyDataSource.Query || p.DataSource == PropertyDataSource.Route))
+					{
+						var location = property.DataSource == PropertyDataSource.Query ? "Query" : "Route";
+						code.AppendLine($"\t\t\t\toperation.Parameters.Add(new Microsoft.OpenApi.Models.OpenApiParameter {{ Name = \"{property.SourceName}\", In = Microsoft.OpenApi.Models.ParameterLocation.{location} }});");
+					}
+					code.AppendLine("\t\t\t\treturn operation;");
 					code.AppendLine("\t\t\t});");
 				}
 			}
@@ -382,8 +398,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		var endpoints = EndpointMapping(context);
 
+		var assemblyName = context.Compilation.AssemblyName?.Replace(".", "_") ?? string.Empty;
+		var assemblyFactoryClassName = $"{assemblyName}VoyagerFactory";
 
 		var referencedFactories = GetFactoryTypes(context);
+		context.AddSource($"{assemblyFactoryClassName}.g.cs", endpoints);
 		return;
 
 		var allNodes = context.Compilation.SyntaxTrees.SelectMany(s => s.GetRoot().DescendantNodes());
@@ -405,8 +424,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		assemblyFactorySource.AppendLine();
 		assemblyFactorySource.AppendLine("namespace Voyager.AssemblyFactories");
 		assemblyFactorySource.AppendLine("{");
-		var assemblyName = context.Compilation.AssemblyName?.Replace(".", "_") ?? string.Empty;
-		var assemblyFactoryClassName = $"{assemblyName}VoyagerFactory";
+
 		assemblyFactorySource.AppendLine("\t[Voyager.Factories.RequestFactory]");
 		assemblyFactorySource.AppendLine($"\tpublic static class {assemblyFactoryClassName}");
 		assemblyFactorySource.AppendLine("\t{");
@@ -702,8 +720,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	private string GetPropertyAssignment(RequestProperty property)
 	{
 		var parts = property.Property.Type.ToDisplayParts();
-		var typeName = property.Property.Type.Name;
-		var isEnumerable = typeName == "IEnumerable";
+		var typeName = property.Property.Type.ToDisplayString();
+		var isEnumerable = property.Property.Type.Name == "IEnumerable";
 		var suffix = isEnumerable ? "s" : "";
 
 		if (isEnumerable)
