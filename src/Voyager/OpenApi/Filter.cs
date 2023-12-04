@@ -4,7 +4,7 @@ using System;
 
 namespace Voyager.OpenApi;
 
-public class VoyagerOpenApiDocumentFilter : IDocumentFilter
+internal class VoyagerOpenApiDocumentFilter : IDocumentFilter
 {
 	private readonly IServiceProvider serviceProvider;
 

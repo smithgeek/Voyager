@@ -1,5 +1,4 @@
 using Voyager;
-using Voyager.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,7 +7,7 @@ builder.Services.AddVoyager();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(config =>
 {
-	config.DocumentFilter<VoyagerOpenApiDocumentFilter>();
+	config.AddVoyager();
 });
 
 var app = builder.Build();
