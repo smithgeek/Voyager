@@ -12,6 +12,12 @@ namespace Shared.TestEndpoint
 		[FromQuery(Name = "abc")]
 		public required IEnumerable<int> List { get; init; }
 
+		[FromCookie]
+		public string? MyCookie { get; set; }
+
+		[FromHeader]
+		public string? MyHeader { get; set; }
+
 		[FromQuery]
 		public required string Other { get; init; }
 	}

@@ -4,6 +4,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 
 namespace Voyager.OpenApi;
@@ -19,6 +21,23 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		schemaRepository = serviceProvider.GetService<SchemaRepository>() ?? new();
 	}
 
+	public OpenApiSchema? Generate(IEnumerable<Type> types)
+	{
+		if (!types.Any())
+		{
+			return null;
+		}
+		var schemas = types.Select(Generate);
+		if (schemas.Count() == 1)
+		{
+			return schemas.First();
+		}
+		return new OpenApiSchema
+		{
+			OneOf = schemas.ToList()
+		};
+	}
+
 	public OpenApiSchema Generate(Type type)
 	{
 		var generatedType = generator.GenerateSchema(type, schemaRepository);
@@ -26,7 +45,7 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		{
 			return schemaRepository.Schemas[type.Name];
 		}
-		if(generatedType.Items?.Reference != null)
+		if (generatedType.Items?.Reference != null)
 		{
 			generatedType.Items = schemaRepository.Schemas[generatedType.Items.Reference.Id];
 		}

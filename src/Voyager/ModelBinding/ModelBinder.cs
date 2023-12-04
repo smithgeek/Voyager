@@ -37,6 +37,24 @@ public class ModelBinder : IModelBinder
 		return await bodyValueProvider.GetValue<TValue>(key);
 	}
 
+	public virtual ValueTask<TValue?> GetCookieValue<TValue>(string key)
+	{
+		if (httpContext.Request.Cookies.TryGetValue(key, out var value))
+		{
+			return ConvertTask<TValue>(value);
+		}
+		return default;
+	}
+
+	public virtual ValueTask<IEnumerable<TValue?>> GetCookieValues<TValue>(string key)
+	{
+		if (httpContext.Request.Cookies.TryGetValue(key, out var value))
+		{
+			return ValueTask.FromResult(new[] { Convert<TValue>(value) }.AsEnumerable());
+		}
+		return default;
+	}
+
 	public virtual ValueTask<TValue?> GetFormValue<TValue>(string key)
 	{
 		formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
@@ -47,6 +65,24 @@ public class ModelBinder : IModelBinder
 	{
 		formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
 		return ValueTask.FromResult(formValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+	}
+
+	public virtual ValueTask<TValue?> GetHeaderValue<TValue>(string key)
+	{
+		if (httpContext.Request.Headers.TryGetValue(key, out var value))
+		{
+			return ConvertTask<TValue>(value.First());
+		}
+		return default;
+	}
+
+	public virtual ValueTask<IEnumerable<TValue?>> GetHeaderValues<TValue>(string key)
+	{
+		if (httpContext.Request.Headers.TryGetValue(key, out var values))
+		{
+			return ValueTask.FromResult(values.Select(Convert<TValue>));
+		}
+		return default;
 	}
 
 	public virtual ValueTask<TValue?> GetQueryStringValue<TValue>(string key)

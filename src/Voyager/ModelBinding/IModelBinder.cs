@@ -7,8 +7,12 @@ namespace Voyager.ModelBinding
 	{
 		ValueTask<TValue?> GetBody<TValue>();
 		ValueTask<TValue?> GetBodyValue<TValue>(string key);
+		ValueTask<TValue?> GetCookieValue<TValue>(string key);
+		ValueTask<IEnumerable<TValue?>> GetCookieValues<TValue>(string key);
 		ValueTask<TValue?> GetFormValue<TValue>(string key);
 		ValueTask<IEnumerable<TValue?>> GetFormValues<TValue>(string key);
+		ValueTask<TValue?> GetHeaderValue<TValue>(string key);
+		ValueTask<IEnumerable<TValue?>> GetHeaderValues<TValue>(string key);
 		ValueTask<TValue?> GetQueryStringValue<TValue>(string key);
 		ValueTask<IEnumerable<TValue?>> GetQueryStringValues<TValue>(string key);
 		ValueTask<TValue?> GetRouteValue<TValue>(string key);

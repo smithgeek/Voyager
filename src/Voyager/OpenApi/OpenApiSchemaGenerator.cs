@@ -1,22 +1,15 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
-using Microsoft.OpenApi.Models;
 using System;
 
 namespace Voyager.OpenApi;
 
-public static class OpenApiSchemaGenerator
+internal static class OpenApiSchemaGenerator
 {
 	private static IOpenApiSchemaGenerator? generator;
 
-	public static OpenApiSchema GenerateSchema(IServiceProvider services, Type type)
+	public static IOpenApiSchemaGenerator GetSchemaGenerator(IServiceProvider services)
 	{
-		return (generator ?? GetSchemaGenerator(services)).Generate(type);
-	}
-
-	private static IOpenApiSchemaGenerator GetSchemaGenerator(IServiceProvider services)
-	{
-		var gen = services.GetService<IOpenApiSchemaGenerator>() ?? new SwashbuckleSchemaGenerator(services);
-		generator = gen;
-		return gen;
+		generator ??= services.GetService<IOpenApiSchemaGenerator>() ?? new SwashbuckleSchemaGenerator(services);
+		return generator;
 	}
 }
