@@ -266,7 +266,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 							{
 								if (prop.IsRequired)
 								{
-									newClassesCode.WriteLine($"RuleFor(r => r.{prop.SourceName}).NotNull();");
+									newClassesCode.WriteLine($"RuleFor(r => r.{prop.Name}).NotNull();");
 								}
 							}
 							newClassesCode.Indent--;
@@ -429,13 +429,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		{
 			get
 			{
-				if (Attribute != null && Attribute.ConstructorArguments.Length > 0)
+				if (Attribute != null && Attribute.NamedArguments.Length > 0)
 				{
-					return Attribute.ConstructorArguments[0].Value?.ToString() ?? Property.Name;
+					return Attribute.NamedArguments[0].Value.Value?.ToString() ?? Property.Name;
 				}
 				return Property.Name;
 			}
 		}
+
+		public string Name => Property.Name;
 	}
 
 	private class EndpointMethod

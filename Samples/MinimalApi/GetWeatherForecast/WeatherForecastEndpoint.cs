@@ -1,6 +1,5 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
-using Shared.GetWeatherForecast;
 using Voyager;
 
 namespace MinimalApi.GetWeatherForecast;
@@ -41,9 +40,7 @@ public class WeatherForecastRequest
 	[FromQuery(Name = "d")]
 	public int Days { get; set; } = 5;
 
-	public IEnumerable<int> asdf { get; set; } = new[] { 1, 2, 3 };
-
-	public static void AddValidationRules(AbstractValidator<GetWeatherForecastRequest> validator)
+	public static void AddValidationRules(AbstractValidator<WeatherForecastRequest> validator)
 	{
 		validator.RuleFor(r => r.Days).InclusiveBetween(1, 5);
 	}
