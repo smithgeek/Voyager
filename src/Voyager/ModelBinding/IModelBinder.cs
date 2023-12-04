@@ -1,21 +1,19 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 
-namespace Voyager.ModelBinding
+namespace Voyager.ModelBinding;
+
+public interface IModelBinder
 {
-	public interface IModelBinder
-	{
-		ValueTask<TValue?> GetBody<TValue>();
-		ValueTask<TValue?> GetBodyValue<TValue>(string key);
-		ValueTask<TValue?> GetCookieValue<TValue>(string key);
-		ValueTask<IEnumerable<TValue?>> GetCookieValues<TValue>(string key);
-		ValueTask<TValue?> GetFormValue<TValue>(string key);
-		ValueTask<IEnumerable<TValue?>> GetFormValues<TValue>(string key);
-		ValueTask<TValue?> GetHeaderValue<TValue>(string key);
-		ValueTask<IEnumerable<TValue?>> GetHeaderValues<TValue>(string key);
-		ValueTask<TValue?> GetQueryStringValue<TValue>(string key);
-		ValueTask<IEnumerable<TValue?>> GetQueryStringValues<TValue>(string key);
-		ValueTask<TValue?> GetRouteValue<TValue>(string key);
-		ValueTask<IEnumerable<TValue?>> GetRouteValues<TValue>(string key);
-	}
+	ValueTask<TValue?> GetBody<TValue>();
+	ValueTask<TValue?> GetCookieValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
+	ValueTask<IEnumerable<TValue>> GetCookieValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
+	ValueTask<TValue?> GetFormValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
+	ValueTask<IEnumerable<TValue>> GetFormValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
+	ValueTask<TValue?> GetHeaderValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
+	ValueTask<IEnumerable<TValue>> GetHeaderValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
+	ValueTask<TValue?> GetQueryStringValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
+	ValueTask<IEnumerable<TValue>> GetQueryStringValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
+	ValueTask<TValue?> GetRouteValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
+	ValueTask<IEnumerable<TValue>> GetRouteValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
 }

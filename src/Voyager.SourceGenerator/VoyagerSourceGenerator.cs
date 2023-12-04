@@ -179,7 +179,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							if (property.DataSource == PropertyDataSource.Body)
 							{
-								code.WriteLine($"{property.Property.Name} = body.{property.SourceName},");
+								var defaultValue = property.DefaultValue ?? "default";
+								code.WriteLine($"{property.Property.Name} = body?.{property.SourceName} ?? {defaultValue},");
 								if (createRequestObject)
 								{
 									newClassesCode.WriteLine($"public {property.Property.Type} {property.SourceName} {{ get; set; }}");
@@ -333,9 +334,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			PropertyDataSource.Form => $"GetRouteValue{suffix}",
 			PropertyDataSource.Cookie => $"GetCookieValue{suffix}",
 			PropertyDataSource.Header => $"GetHeaderValue{suffix}",
-			_ => "GetBodyValue",
+			_ => "__",
 		};
-		return $"await modelBinder.{providerFunction}<{typeName}>(\"{property.SourceName}\")";
+		return $"await modelBinder.{providerFunction}<{typeName}>(\"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")})";
 	}
 
 	private void InjectProperties(INamedTypeSymbol? @class, TextWriter code)
@@ -386,6 +387,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				DataSource = PropertyDataSource.Body
 			};
+			if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
+					&& syntax.Initializer != null)
+			{
+				requestProperty.DefaultValue = syntax.Initializer.Value.ToString();
+			}
 			requestObject.Properties.Add(requestProperty);
 		}
 
@@ -412,6 +418,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	internal class RequestProperty(IPropertySymbol property)
 	{
+		public bool IsValueType => Property.Type.IsValueType;
+		public string? DefaultValue { get; set; }
 		public AttributeData? Attribute { get; set; }
 		public PropertyDataSource DataSource { get; set; } = PropertyDataSource.Body;
 		public bool IsRequired => Property.IsRequired;

@@ -1,17 +1,29 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Linq;
 using Voyager;
 
 namespace Shared.GetWeatherForecast
 {
+	interface IEndpointConfigure
+	{
+		static abstract void Configure(RouteHandlerBuilder builder);
+	}
+
 	[VoyagerEndpoint("v2/WeatherForecast/{city}")]
-	public class GetWeatherForecastHandler
+	public class GetWeatherForecastHandler : IEndpointConfigure
 	{
 		private static readonly string[] Summaries = new[]
 		{
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
+
+		public static void Configure(RouteHandlerBuilder builder)
+		{
+			builder.CacheOutput();
+		}
 
 		public IResult Get(GetWeatherForecastRequest request)
 		{

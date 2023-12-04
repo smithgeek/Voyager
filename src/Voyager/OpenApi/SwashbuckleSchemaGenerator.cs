@@ -40,16 +40,12 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 
 	public OpenApiSchema Generate(Type type)
 	{
-		var generatedType = generator.GenerateSchema(type, schemaRepository);
-		if (generatedType.Reference != null)
-		{
-			return schemaRepository.Schemas[type.Name];
-		}
-		if (generatedType.Items?.Reference != null)
-		{
-			generatedType.Items = schemaRepository.Schemas[generatedType.Items.Reference.Id];
-		}
-		return generatedType;
+		return generator.GenerateSchema(type, schemaRepository);
+	}
+
+	public IEnumerable<KeyValuePair<string, OpenApiSchema>> GetSchemas()
+	{
+		return schemaRepository.Schemas;
 	}
 
 	private static ISchemaGenerator GetSchemaGenerator(IServiceProvider serviceProvider)

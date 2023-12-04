@@ -1,7 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using System.Threading;
-using Voyager;
+﻿using Voyager;
 
 namespace Shared.TestEndpoint;
 
@@ -24,13 +21,6 @@ public class TestEndpointHandler
 [VoyagerEndpoint("/test2")]
 public class TestEndpoint2
 {
-	private readonly IHttpContextAccessor httpContextAccessor;
-
-	public TestEndpoint2(IHttpContextAccessor httpContextAccessor)
-	{
-		this.httpContextAccessor = httpContextAccessor;
-	}
-
 	public required CancellationToken CancellationToken { get; set; }
 	public required HttpContext HttpContext { get; set; }
 

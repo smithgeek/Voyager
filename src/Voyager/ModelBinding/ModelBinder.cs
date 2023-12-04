@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Primitives;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -25,91 +27,97 @@ public class ModelBinder : IModelBinder
 		this.httpContext = httpContext;
 	}
 
-	public virtual ValueTask<TValue?> GetBody<TValue>()
+	public virtual async ValueTask<TValue?> GetBody<TValue>()
 	{
-		bodyValueProvider ??= new JsonElementValueProvider(httpContext, GetJsonOptions());
-		return bodyValueProvider.ParseBody<TValue>();
+		try
+		{
+			bodyValueProvider ??= new JsonElementValueProvider(httpContext, GetJsonOptions());
+			var body = await bodyValueProvider.ParseBody<TValue>();
+			return body;
+		}
+		catch (Exception)
+		{
+			return default;
+		}
 	}
 
-	public virtual async ValueTask<TValue?> GetBodyValue<TValue>(string key)
-	{
-		bodyValueProvider ??= new JsonElementValueProvider(httpContext, GetJsonOptions());
-		return await bodyValueProvider.GetValue<TValue>(key);
-	}
-
-	public virtual ValueTask<TValue?> GetCookieValue<TValue>(string key)
+	public virtual ValueTask<TValue?> GetCookieValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null)
 	{
 		if (httpContext.Request.Cookies.TryGetValue(key, out var value))
 		{
-			return ConvertTask<TValue>(value);
+			return ConvertTask(value, defaultValue);
 		}
-		return default;
+		return ValueTask.FromResult(GetDefault(defaultValue));
 	}
 
-	public virtual ValueTask<IEnumerable<TValue?>> GetCookieValues<TValue>(string key)
+	public virtual ValueTask<IEnumerable<TValue>> GetCookieValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null)
 	{
 		if (httpContext.Request.Cookies.TryGetValue(key, out var value))
 		{
-			return ValueTask.FromResult(new[] { Convert<TValue>(value) }.AsEnumerable());
+			var convertedValue = Convert<TValue>(value, null);
+			if (convertedValue != null)
+			{
+				return ValueTask.FromResult(new[] { convertedValue }.AsEnumerable());
+			}
 		}
-		return default;
+		return ValueTask.FromResult(GetDefaultEnumerable(defaultValue));
 	}
 
-	public virtual ValueTask<TValue?> GetFormValue<TValue>(string key)
+	public virtual ValueTask<TValue?> GetFormValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null)
 	{
 		formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
-		return ConvertTask<TValue>(formValueProvider.GetValue(key).FirstValue);
+		return ConvertTask(formValueProvider.GetValue(key).FirstValue, defaultValue);
 	}
 
-	public virtual ValueTask<IEnumerable<TValue?>> GetFormValues<TValue>(string key)
+	public virtual ValueTask<IEnumerable<TValue>> GetFormValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null)
 	{
 		formValueProvider ??= new FormValueProvider(BindingSource.Form, httpContext.Request.Form, CultureInfo.InvariantCulture);
-		return ValueTask.FromResult(formValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		var values = formValueProvider.GetValue(key).Values;
+		return GetEnumerableValues(values, defaultValue);
 	}
 
-	public virtual ValueTask<TValue?> GetHeaderValue<TValue>(string key)
+	public virtual ValueTask<TValue?> GetHeaderValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null)
 	{
 		if (httpContext.Request.Headers.TryGetValue(key, out var value))
 		{
-			return ConvertTask<TValue>(value.First());
+			return ConvertTask(value.First(), defaultValue);
 		}
-		return default;
+		return ValueTask.FromResult(GetDefault(defaultValue));
 	}
 
-	public virtual ValueTask<IEnumerable<TValue?>> GetHeaderValues<TValue>(string key)
+	public virtual ValueTask<IEnumerable<TValue>> GetHeaderValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null)
 	{
-		if (httpContext.Request.Headers.TryGetValue(key, out var values))
-		{
-			return ValueTask.FromResult(values.Select(Convert<TValue>));
-		}
-		return default;
+		httpContext.Request.Headers.TryGetValue(key, out var values);
+		return GetEnumerableValues(values, defaultValue);
 	}
 
-	public virtual ValueTask<TValue?> GetQueryStringValue<TValue>(string key)
+	public virtual ValueTask<TValue?> GetQueryStringValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null)
 	{
 		queryStringValueProvider ??= new QueryStringValueProvider(BindingSource.Query, httpContext.Request.Query, CultureInfo.InvariantCulture);
-		return ConvertTask<TValue>(queryStringValueProvider.GetValue(key).FirstValue);
+		return ConvertTask(queryStringValueProvider.GetValue(key).FirstValue, defaultValue);
 	}
 
-	public virtual ValueTask<IEnumerable<TValue?>> GetQueryStringValues<TValue>(string key)
+	public virtual ValueTask<IEnumerable<TValue>> GetQueryStringValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null)
 	{
 		queryStringValueProvider ??= new QueryStringValueProvider(BindingSource.Query, httpContext.Request.Query, CultureInfo.InvariantCulture);
-		return ValueTask.FromResult(queryStringValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		var values = queryStringValueProvider.GetValue(key).Values;
+		return GetEnumerableValues(values, defaultValue);
 	}
 
-	public virtual ValueTask<TValue?> GetRouteValue<TValue>(string key)
+	public virtual ValueTask<TValue?> GetRouteValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null)
 	{
 		routeValueProvider ??= new RouteValueProvider(BindingSource.Path, httpContext.Request.RouteValues);
-		return ConvertTask<TValue>(routeValueProvider.GetValue(key).FirstValue);
+		return ConvertTask(routeValueProvider.GetValue(key).FirstValue, defaultValue);
 	}
 
-	public virtual ValueTask<IEnumerable<TValue?>> GetRouteValues<TValue>(string key)
+	public virtual ValueTask<IEnumerable<TValue>> GetRouteValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null)
 	{
 		routeValueProvider ??= new RouteValueProvider(BindingSource.Path, httpContext.Request.RouteValues);
-		return ValueTask.FromResult(routeValueProvider.GetValue(key).Values.Select(Convert<TValue>));
+		var values = routeValueProvider.GetValue(key).Values;
+		return GetEnumerableValues(values, defaultValue);
 	}
 
-	private TValue? Convert<TValue>(string? value)
+	private TValue? Convert<TValue>(string? value, DefaultValue<TValue>? defaultValue = null)
 	{
 		if (value is TValue tValue)
 		{
@@ -117,14 +125,14 @@ public class ModelBinder : IModelBinder
 		}
 		if (value is null || value == string.Empty)
 		{
-			return default;
+			return GetDefault(defaultValue);
 		}
 		return JsonSerializer.Deserialize<TValue>(value, GetJsonOptions());
 	}
 
-	private ValueTask<TValue?> ConvertTask<TValue>(string? value)
+	private ValueTask<TValue?> ConvertTask<TValue>(string? value, DefaultValue<TValue>? defaultValue)
 	{
-		return ValueTask.FromResult(Convert<TValue>(value));
+		return ValueTask.FromResult(Convert(value, defaultValue));
 	}
 
 	private JsonSerializerOptions GetJsonOptions()
@@ -132,4 +140,32 @@ public class ModelBinder : IModelBinder
 		jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
 		return jsonOptions;
 	}
+
+	private static TValue? GetDefault<TValue>(DefaultValue<TValue>? value)
+	{
+		if (value == null)
+		{
+			return default;
+		}
+		return value.Value;
+	}
+
+	private static IEnumerable<TValue> GetDefaultEnumerable<TValue>(DefaultValue<IEnumerable<TValue>>? value)
+	{
+		if (value == null)
+		{
+			return Enumerable.Empty<TValue>();
+		}
+		return value.Value;
+	}
+
+	private ValueTask<IEnumerable<TValue>> GetEnumerableValues<TValue>(StringValues stringValues, DefaultValue<IEnumerable<TValue>>? defaultValue)
+	{
+		if (stringValues.Any())
+		{
+			return ValueTask.FromResult(stringValues.Select(v => Convert<TValue>(v, null)).WhereNotNull());
+		}
+		return ValueTask.FromResult(GetDefaultEnumerable(defaultValue));
+	}
+
 }
