@@ -1,4 +1,5 @@
-﻿using System;
+﻿using FluentValidation.Results;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Voyager;
@@ -13,7 +14,7 @@ namespace Shared.GetWeatherForecast
 			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 		};
 
-		public IEnumerable<GetWeatherForecastResponse> Get(GetWeatherForecastRequest request)
+		public IEnumerable<GetWeatherForecastResponse> Get(GetWeatherForecastRequest request, ValidationResult validationResults)
 		{
 			if (request.Days < 1)
 			{

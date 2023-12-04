@@ -2,10 +2,11 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 
 namespace Voyager.SourceGenerator;
 
@@ -37,38 +38,44 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	private string EndpointMapping(GeneratorExecutionContext context)
 	{
 		var bodiesCreated = new HashSet<string>();
-		var requestBodies = new StringBuilder();
-		var addVoyagerCode = new StringBuilder();
-		addVoyagerCode.AppendLine();
+		var newClassesCode = new IndentedTextWriter(new StringWriter());
+		newClassesCode.Indent++;
+		newClassesCode.WriteLine();
+		var addVoyagerCode = new IndentedTextWriter(new StringWriter());
+		addVoyagerCode.WriteLine();
+		addVoyagerCode.Indent++;
 
-		addVoyagerCode.AppendLine("\tpublic static void AddVoyagerServices(IServiceCollection services)");
-		addVoyagerCode.AppendLine("\t{");
-		addVoyagerCode.AppendLine("\t\tAddVoyager(services);");
-		addVoyagerCode.AppendLine("\t}");
-		addVoyagerCode.AppendLine("\tinternal static void AddVoyager(this IServiceCollection services)");
-		addVoyagerCode.AppendLine("\t{");
-		addVoyagerCode.AppendLine();
-		var code = new StringBuilder();
-		code.AppendLine("using Microsoft.AspNetCore.Builder;");
-		code.AppendLine("using Microsoft.AspNetCore.Http;");
-		code.AppendLine("using Microsoft.AspNetCore.Routing;");
-		code.AppendLine("using Microsoft.Extensions.DependencyInjection;");
-		code.AppendLine("using Microsoft.OpenApi.Models;");
-		code.AppendLine("using System.Collections.Generic;");
-		code.AppendLine("using System.Threading;");
-		code.AppendLine("using Voyager.ModelBinding;");
-		code.AppendLine();
-		code.AppendLine("namespace Voyager;");
-		code.AppendLine();
-		code.AppendLine("public static class VoyagerEndpoints");
-		code.AppendLine("{");
-		code.AppendLine("\tpublic static void MapVoyagerEndpoints(WebApplication app)");
-		code.AppendLine("\t{");
-		code.AppendLine("\t\tMapVoyager(app);");
-		code.AppendLine("\t}");
-		code.AppendLine();
-		code.AppendLine("\tinternal static void MapVoyager(this WebApplication app)");
-		code.AppendLine("\t{");
+		addVoyagerCode.WriteLine("public static void AddVoyagerServices(IServiceCollection services)");
+		addVoyagerCode.WriteLine("{");
+		addVoyagerCode.WriteLine("\tAddVoyager(services);");
+		addVoyagerCode.WriteLine("}");
+		addVoyagerCode.WriteLine();
+		addVoyagerCode.WriteLine("internal static void AddVoyager(this IServiceCollection services)");
+		addVoyagerCode.WriteLine("{");
+		addVoyagerCode.Indent++;
+		var code = new IndentedTextWriter(new StringWriter());
+		code.WriteLine("using FluentValidation;");
+		code.WriteLine("using Microsoft.AspNetCore.Builder;");
+		code.WriteLine("using Microsoft.AspNetCore.Http;");
+		code.WriteLine("using Microsoft.AspNetCore.Routing;");
+		code.WriteLine("using Microsoft.Extensions.DependencyInjection;");
+		code.WriteLine("using Microsoft.OpenApi.Models;");
+		code.WriteLine("using System.Collections.Generic;");
+		code.WriteLine("using System.Threading;");
+		code.WriteLine("using Voyager.ModelBinding;");
+		code.WriteLine();
+		code.WriteLine("namespace Voyager;");
+		code.WriteLine();
+		code.WriteLine("public static class VoyagerEndpoints");
+		code.WriteLine("{");
+		code.Indent++;
+		code.WriteLine("public static void MapVoyagerEndpoints(WebApplication app)");
+		code.WriteLine("{");
+		code.WriteLine("\tMapVoyager(app);");
+		code.WriteLine("}");
+		code.WriteLine();
+		code.WriteLine("internal static void MapVoyager(this WebApplication app)");
+		code.WriteLine("{");
 		var treesWithClassesWithAttributes = context.Compilation.SyntaxTrees.Where(
 			st => st.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
 				.Any(p => p.DescendantNodes().OfType<AttributeSyntax>().Any()));
@@ -127,17 +134,19 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 						var hasBody = requestObject.Properties.Any(p => p.DataSource == PropertyDataSource.Body);
 
-						addVoyagerCode.AppendLine($"\t\tservices.AddTransient<{classModel?.OriginalDefinition}>();");
-						code.Append("\t\t");
+						addVoyagerCode.WriteLine($"services.AddTransient<{classModel?.OriginalDefinition}>();");
+						code.Indent++;
+						code.Write("");
 						if (configureMethod != null)
 						{
-							code.Append($"{classModel?.OriginalDefinition}.Configure(");
+							code.Write($"{classModel?.OriginalDefinition}.Configure(");
 						}
-						code.AppendLine($"app.Map{httpMethod}({path}, async (HttpContext context, CancellationToken cancellationToken) =>");
-						code.AppendLine("\t\t{");
-						code.AppendLine($"\t\t\tvar endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
-						code.Append(InjectProperties(classModel));
-						code.AppendLine("\t\t\tvar modelBinder = context.RequestServices.GetService<IModelBinder>() ?? new ModelBinder(context);");
+						code.WriteLine($"app.Map{httpMethod}({path}, async (HttpContext context) =>");
+						code.WriteLine("{");
+						code.Indent++;
+						code.WriteLine($"var endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
+						InjectProperties(classModel, code);
+						code.WriteLine("var modelBinder = context.RequestServices.GetService<IModelBinder>() ?? new ModelBinder(context);");
 						var createRequestObject = !bodiesCreated.Contains($"{requestType}Body");
 						if (createRequestObject)
 						{
@@ -145,91 +154,154 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						}
 						if (hasBody)
 						{
-							code.AppendLine($"\t\t\tvar body = await modelBinder.GetBody<{requestType}Body>();");
+							code.WriteLine($"var body = await modelBinder.GetBody<{requestType}Body>();");
 							if (createRequestObject)
 							{
-								requestBodies.AppendLine($"\tpublic class {requestType}Body");
-								requestBodies.AppendLine("\t{");
+								newClassesCode.WriteLine($"public class {requestType}Body");
+								newClassesCode.WriteLine("{");
+								newClassesCode.Indent++;
 							}
 						}
-						code.AppendLine($"\t\t\tvar request = new {requestTypeInfo.Type?.OriginalDefinition}");
-						code.AppendLine("\t\t\t{");
+						code.WriteLine($"var request = new {requestTypeInfo.Type?.OriginalDefinition}");
+						code.WriteLine("{");
+						code.Indent++;
 						foreach (var property in requestObject.Properties)
 						{
 							if (property.DataSource == PropertyDataSource.Body)
 							{
-								code.AppendLine($"\t\t\t\t{property.Property.Name} = body.{property.SourceName},");
+								code.WriteLine($"{property.Property.Name} = body.{property.SourceName},");
 								if (createRequestObject)
 								{
-									requestBodies.AppendLine($"\t\tpublic {property.Property.Type} {property.SourceName} {{ get; set; }}");
+									newClassesCode.WriteLine($"public {property.Property.Type} {property.SourceName} {{ get; set; }}");
 								}
 							}
 							else
 							{
-								code.AppendLine($"\t\t\t\t{property.Property.Name} = {GetPropertyAssignment(property)},");
+								code.WriteLine($"{property.Property.Name} = {GetPropertyAssignment(property)},");
 							}
 						}
 						if (hasBody && createRequestObject)
 						{
-							requestBodies.AppendLine("\t}");
+							newClassesCode.Indent--;
+							newClassesCode.WriteLine("}");
 						}
-						code.AppendLine("\t\t\t};");
+						code.Indent--;
+						code.WriteLine("};");
 						var awaitCode = isTask ? "await " : "";
 
 						var parameterTypes = method.ParameterList.Parameters.Skip(1).Select(p => GetInstanceOf(semanticModel.GetTypeInfo(p.Type).Type));
 						var parameters = new[] { "request" }.Concat(parameterTypes.Where(p => p != null));
-						code.AppendLine($"\t\t\treturn {awaitCode}endpoint.{httpMethod}({string.Join(", ", parameters)});");
-						code.AppendLine("\t\t}).WithOpenApi(operation =>");
-						code.AppendLine("\t\t{");
+						if (requestObject.HasValidationMethod)
+						{
+							code.WriteLine($"var validator = new {requestType}Validator();");
+							code.WriteLine($"{requestTypeInfo.Type?.OriginalDefinition}.AddValidationRules(validator);");
+							code.WriteLine($"var validationResult = await validator.ValidateAsync(request);");
+							if (!parameters.Contains("validationResult"))
+							{
+								code.WriteLine("if(!validationResult.IsValid)");
+								code.WriteLine("{");
+								code.WriteLine("\treturn Results.ValidationProblem(validationResult.ToDictionary());");
+								code.WriteLine("}");
+							}
+						}
+						code.WriteLine($"return {awaitCode}endpoint.{httpMethod}({string.Join(", ", parameters)});");
+						code.Indent--;
+						code.WriteLine("}).WithOpenApi(operation =>");
+						code.WriteLine("{");
+						code.Indent++;
 						foreach (var property in requestObject.Properties.Where(p =>
 							p.DataSource == PropertyDataSource.Query || p.DataSource == PropertyDataSource.Route))
 						{
 							var location = property.DataSource == PropertyDataSource.Query ? "Query" : "Path";
-							code.AppendLine($"\t\t\toperation.Parameters.Add(new Microsoft.OpenApi.Models.OpenApiParameter");
-							code.AppendLine($"\t\t\t{{");
-							code.AppendLine($"\t\t\t\tName = \"{property.SourceName}\",");
-							code.AppendLine($"\t\t\t\tIn = Microsoft.OpenApi.Models.ParameterLocation.{location},");
-							code.AppendLine($"\t\t\t\tSchema = Voyager.OpenApi.OpenApiSchemaGenerator.GenerateSchema(app.Services, typeof({property.Property.Type})),");
-							code.AppendLine($"\t\t\t}});");
+							code.WriteLine($"operation.Parameters.Add(new Microsoft.OpenApi.Models.OpenApiParameter");
+							code.WriteLine($"{{");
+							code.Indent++;
+							code.WriteLine($"Name = \"{property.SourceName}\",");
+							code.WriteLine($"In = Microsoft.OpenApi.Models.ParameterLocation.{location},");
+							code.WriteLine($"Schema = Voyager.OpenApi.OpenApiSchemaGenerator.GenerateSchema(app.Services, typeof({property.Property.Type})),");
+							code.Indent--;
+							code.WriteLine($"}});");
 						}
 						if (hasBody)
 						{
-							code.AppendLine($"\t\t\toperation.RequestBody = new OpenApiRequestBody");
-							code.AppendLine("\t\t\t{");
-							code.AppendLine("\t\t\t\tContent = new Dictionary<string, OpenApiMediaType>");
-							code.AppendLine("\t\t\t\t{");
-							code.AppendLine("\t\t\t\t\t{");
-							code.AppendLine("\t\t\t\t\t\t\"application/json\",");
-							code.AppendLine("\t\t\t\t\t\tnew OpenApiMediaType");
-							code.AppendLine("\t\t\t\t\t\t{");
-							code.AppendLine($"\t\t\t\t\t\t\tSchema = Voyager.OpenApi.OpenApiSchemaGenerator.GenerateSchema(app.Services, typeof({requestType}Body))");
-							code.AppendLine("\t\t\t\t\t\t}");
-							code.AppendLine("\t\t\t\t\t}");
-							code.AppendLine("\t\t\t\t}");
-							code.AppendLine("\t\t\t};");
+							code.WriteLine($"operation.RequestBody = new OpenApiRequestBody");
+							WriteOpenApiContent(code, $"{requestType}Body");
+							code.WriteLine("};");
 						}
-						code.AppendLine("\t\t\treturn operation;");
+						code.WriteLine("operation.Responses = new OpenApiResponses();");
+						code.WriteLine("operation.Responses.Add(\"200\", new OpenApiResponse");
+						
+						WriteOpenApiContent(code, returnType.Type?.ToDisplayString() ?? "");
+						code.WriteLine("});");
+						code.WriteLine("return operation;");
+						code.Indent--;
 
 						if (configureMethod != null)
 						{
-							code.AppendLine("\t\t}));");
+							code.WriteLine("}));");
 						}
 						else
 						{
-							code.AppendLine("\t\t});");
+							code.WriteLine("});");
+						}
+						code.Indent--;
+
+						if (requestObject.HasValidationMethod)
+						{
+							newClassesCode.WriteLine($"public class {requestType}Validator : AbstractValidator<{requestTypeInfo.Type?.OriginalDefinition}>");
+							newClassesCode.WriteLine("{");
+							newClassesCode.Indent++;
+							newClassesCode.WriteLine($"public {requestType}Validator()");
+							newClassesCode.WriteLine("{");
+							newClassesCode.Indent++;
+							foreach (var prop in requestObject.Properties)
+							{
+								if (prop.Property.IsRequired)
+								{
+									newClassesCode.WriteLine($"RuleFor(r => r.{prop.SourceName}).NotNull();");
+								}
+							}
+							newClassesCode.Indent--;
+							newClassesCode.WriteLine("}");
+
+							newClassesCode.Indent--;
+							newClassesCode.WriteLine("}");
 						}
 					}
 				}
 			}
 		}
 
-		code.AppendLine("\t}");
-		code.AppendLine();
-		code.Append(requestBodies);
-		addVoyagerCode.AppendLine("\t}");
-		code.Append(addVoyagerCode);
-		code.AppendLine("}");
-		return code.ToString();
+		code.WriteLine("}");
+		code.WriteLine();
+		code.WriteLineNoTabs(newClassesCode.InnerWriter.ToString());
+		addVoyagerCode.Indent--;
+		addVoyagerCode.WriteLine("}");
+		code.WriteLineNoTabs(addVoyagerCode.InnerWriter.ToString());
+		code.Indent--;
+		code.WriteLine("}");
+		return code.InnerWriter.ToString();
+	}
+
+	private static void WriteOpenApiContent(IndentedTextWriter code, string type)
+	{
+		code.WriteLine("{");
+		code.Indent++;
+		code.WriteLine("Content = new Dictionary<string, OpenApiMediaType>");
+		code.WriteLine("{");
+		code.Indent++;
+		code.WriteLine("{");
+		code.Indent++;
+		code.WriteLine("\"application/json\",");
+		code.WriteLine("new OpenApiMediaType");
+		code.WriteLine("{");
+		code.WriteLine($"\tSchema = Voyager.OpenApi.OpenApiSchemaGenerator.GenerateSchema(app.Services, typeof({type}))");
+		code.WriteLine("}");
+		code.Indent--;
+		code.WriteLine("}");
+		code.Indent--;
+		code.WriteLine("}");
+		code.Indent--;
 	}
 
 	private string? GetInstanceOf(ITypeSymbol? type)
@@ -245,7 +317,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 		else if (typeName == "System.Threading.CancellationToken")
 		{
-			return "cancellationToken";
+			return "context.RequestAborted";
+		}
+		else if (typeName == "FluentValidation.Results.ValidationResult")
+		{
+			return "validationResult";
 		}
 		else
 		{
@@ -274,9 +350,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		return $"await modelBinder.{providerFunction}<{typeName}>(\"{property.SourceName}\")";
 	}
 
-	private string InjectProperties(INamedTypeSymbol? @class)
+	private void InjectProperties(INamedTypeSymbol? @class, TextWriter code)
 	{
-		var code = new StringBuilder();
 		if (@class != null)
 		{
 			var injectedProperties = @class?.GetMembers().Where(m =>
@@ -289,11 +364,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				foreach (var property in injectedProperties)
 				{
-					code.AppendLine($"\t\t\tendpoint.{property.Name} = {GetInstanceOf(property.Type)};");
+					code.WriteLine($"endpoint.{property.Name} = {GetInstanceOf(property.Type)};");
 				}
 			}
 		}
-		return code.ToString();
 	}
 
 	private RequestObject ParseRequestObject(Microsoft.CodeAnalysis.TypeInfo requestType)
@@ -339,11 +413,24 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			};
 			requestObject.Properties.Add(requestProperty);
 		}
+
+		var validationMethods = requestType.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
+			&& m.Name.Equals("AddValidationRules", StringComparison.OrdinalIgnoreCase)).OfType<IMethodSymbol>();
+
+		foreach (var validationMethod in validationMethods ?? Enumerable.Empty<IMethodSymbol>())
+		{
+			var firstParam = validationMethod.Parameters.FirstOrDefault();
+			if (firstParam?.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestType.Type?.ToDisplayString()}>")
+			{
+				requestObject.HasValidationMethod = true;
+			}
+		}
 		return requestObject;
 	}
 
 	internal class RequestObject
 	{
+		public bool HasValidationMethod { get; set; } = false;
 		public List<RequestProperty> Properties { get; set; } = new();
 	}
 

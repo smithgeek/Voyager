@@ -26,6 +26,10 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		{
 			return schemaRepository.Schemas[type.Name];
 		}
+		if(generatedType.Items?.Reference != null)
+		{
+			generatedType.Items = schemaRepository.Schemas[generatedType.Items.Reference.Id];
+		}
 		return generatedType;
 	}
 
