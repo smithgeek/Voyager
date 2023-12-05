@@ -183,6 +183,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 								code.WriteLine($"{property.Property.Name} = body?.{property.SourceName} ?? {defaultValue},");
 								if (createRequestObject)
 								{
+									foreach (var attr in property.Property.GetAttributes())
+									{
+										newClassesCode.WriteLine($"[{attr}]");
+									}
 									newClassesCode.WriteLine($"public {property.Property.Type} {property.SourceName} {{ get; set; }}");
 								}
 							}
