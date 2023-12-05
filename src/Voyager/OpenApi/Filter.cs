@@ -18,7 +18,10 @@ internal class VoyagerOpenApiDocumentFilter : IDocumentFilter
 		var refTypes = OpenApiSchemaGenerator.GetSchemaGenerator(serviceProvider).GetSchemas();
 		foreach (var type in refTypes)
 		{
-			swaggerDoc.Components.Schemas.Add(type);
+			if (!swaggerDoc.Components.Schemas.ContainsKey(type.Key))
+			{
+				swaggerDoc.Components.Schemas.Add(type);
+			}
 		}
 	}
 }
