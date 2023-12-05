@@ -433,11 +433,12 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		{
 			get
 			{
+				var propName = $"{char.ToLower(Property.Name[0])}{Property.Name.Substring(1)}";
 				if (Attribute != null && Attribute.NamedArguments.Length > 0)
 				{
-					return Attribute.NamedArguments[0].Value.Value?.ToString() ?? Property.Name;
+					return Attribute.NamedArguments[0].Value.Value?.ToString() ?? propName;
 				}
-				return Property.Name;
+				return propName;
 			}
 		}
 
