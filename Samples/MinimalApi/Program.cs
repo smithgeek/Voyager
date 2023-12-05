@@ -5,10 +5,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddVoyager();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(config =>
-{
-	config.AddVoyager();
-});
+builder.Services.AddSwaggerGen(config => config.AddVoyager());
 
 var app = builder.Build();
 

@@ -32,10 +32,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="$(OutputPath)\Voyager.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<ProjectReference Include="..\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj" />
+		<None Include="$(ProjectDir)..\Voyager.SourceGenerator\bin\$(Configuration)\netstandard2.0\Voyager.SourceGenerator.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
 	</ItemGroup>
 </Project>
