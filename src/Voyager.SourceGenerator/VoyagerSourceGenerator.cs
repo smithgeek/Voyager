@@ -65,6 +65,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		addVoyagerCode.WriteLine("{");
 		addVoyagerCode.Indent++;
 		var code = new IndentedTextWriter(new StringWriter());
+		code.WriteLine("#nullable enable");
 		code.WriteLine("using FluentValidation;");
 		code.WriteLine("using Microsoft.AspNetCore.Builder;");
 		code.WriteLine("using Microsoft.AspNetCore.Http;");
@@ -151,7 +152,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							code.Write($"{classModel?.OriginalDefinition}.Configure(");
 						}
-						code.WriteLine($"app.Map{httpMethod}({path}, async (HttpContext context) =>");
+						var needsAsync = method.IsTask || requestObject.NeedsValidating || hasBody;
+						code.WriteLine($"app.Map{httpMethod}({path}, {(needsAsync ? "async" : "")} (HttpContext context) =>");
 						code.WriteLine("{");
 						code.Indent++;
 						code.WriteLine($"var endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
@@ -494,15 +496,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					return GetResultFromExpression(conditional.WhenTrue).Concat(
 						GetResultFromExpression(conditional.WhenFalse));
 				}
-				else if(expression is AwaitExpressionSyntax awaitSyntax)
+				else if (expression is AwaitExpressionSyntax awaitSyntax)
 				{
 					return FindResultsInNodes(awaitSyntax.DescendantNodes(), true);
 				}
-				else if(expression is CastExpressionSyntax castExpression)
+				else if (expression is CastExpressionSyntax castExpression)
 				{
 					return GetResultFromExpression(castExpression.Expression);
 				}
-				else if(expression is ParenthesizedExpressionSyntax parenSyntax)
+				else if (expression is ParenthesizedExpressionSyntax parenSyntax)
 				{
 					return GetResultFromExpression(parenSyntax.Expression);
 				}
