@@ -65,7 +65,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		addVoyagerCode.WriteLine("{");
 		addVoyagerCode.Indent++;
 		var code = new IndentedTextWriter(new StringWriter());
-		code.WriteLine("#nullable enable");
+		code.WriteLine("#nullable disable");
 		code.WriteLine("using FluentValidation;");
 		code.WriteLine("using Microsoft.AspNetCore.Builder;");
 		code.WriteLine("using Microsoft.AspNetCore.Http;");
@@ -152,7 +152,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							code.Write($"{classModel?.OriginalDefinition}.Configure(");
 						}
-						var needsAsync = method.IsTask || requestObject.NeedsValidating || hasBody;
+						var needsAsync = method.IsTask || requestObject.NeedsValidating || requestObject.Properties.Any();
 						code.WriteLine($"app.Map{httpMethod}({path}, {(needsAsync ? "async" : "")} (HttpContext context) =>");
 						code.WriteLine("{");
 						code.Indent++;
@@ -189,7 +189,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 									{
 										newClassesCode.WriteLine($"[{attr}]");
 									}
-									newClassesCode.WriteLine($"public {property.Property.Type} {property.SourceName} {{ get; set; }}");
+									newClassesCode.WriteLine($"public {property.Property.Type.ToString().Trim('?')} {property.SourceName} {{ get; set; }}");
 								}
 							}
 							else
