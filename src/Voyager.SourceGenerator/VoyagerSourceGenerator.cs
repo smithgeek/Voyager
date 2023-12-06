@@ -54,13 +54,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		newClassesCode.WriteLine();
 		var addVoyagerCode = new IndentedTextWriter(new StringWriter());
 		addVoyagerCode.WriteLine();
+		addVoyagerCode.WriteLine("namespace Microsoft.Extensions.DependencyInjection");
+		addVoyagerCode.WriteLine("{");
+		addVoyagerCode.Indent++;
+		addVoyagerCode.WriteLine();
+
+		addVoyagerCode.WriteLine("internal static class VoyagerEndpoints");
+		addVoyagerCode.WriteLine("{");
 		addVoyagerCode.Indent++;
 
-		addVoyagerCode.WriteLine("public static void AddVoyagerServices(IServiceCollection services)");
-		addVoyagerCode.WriteLine("{");
-		addVoyagerCode.WriteLine("\tAddVoyager(services);");
-		addVoyagerCode.WriteLine("}");
-		addVoyagerCode.WriteLine();
 		addVoyagerCode.WriteLine("internal static void AddVoyager(this IServiceCollection services)");
 		addVoyagerCode.WriteLine("{");
 		addVoyagerCode.Indent++;
@@ -75,19 +77,17 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		code.WriteLine("using System;");
 		code.WriteLine("using System.Collections.Generic;");
 		code.WriteLine("using System.Threading;");
+		code.WriteLine("using Voyager;");
 		code.WriteLine("using Voyager.ModelBinding;");
 		code.WriteLine();
-		code.WriteLine("namespace Voyager;");
-		code.WriteLine();
-		code.WriteLine("public static class VoyagerEndpoints");
+		code.WriteLine("namespace Voyager.Generated");
 		code.WriteLine("{");
 		code.Indent++;
-		code.WriteLine("public static void MapVoyagerEndpoints(WebApplication app)");
+		
+		code.WriteLine("internal class EndpointMapper : Voyager.IVoyagerMapping");
 		code.WriteLine("{");
-		code.WriteLine("\tMapVoyager(app);");
-		code.WriteLine("}");
-		code.WriteLine();
-		code.WriteLine("internal static void MapVoyager(this WebApplication app)");
+		code.Indent++;
+		code.WriteLine("public void MapEndpoints(WebApplication app)");
 		code.WriteLine("{");
 		var treesWithClassesWithAttributes = context.Compilation.SyntaxTrees.Where(
 			st => st.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
@@ -286,9 +286,19 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 		}
 
+		addVoyagerCode.WriteLine($"services.AddTransient<IVoyagerMapping, Voyager.Generated.EndpointMapper>();");
+
 		code.WriteLine("}");
+		code.Indent--;
 		code.WriteLine();
 		code.WriteLineNoTabs(newClassesCode.InnerWriter.ToString());
+		code.Indent--;
+		code.WriteLine("}");
+		code.Indent--;
+		code.WriteLine("}");
+
+		addVoyagerCode.Indent--;
+		addVoyagerCode.WriteLine("}");
 		addVoyagerCode.Indent--;
 		addVoyagerCode.WriteLine("}");
 		code.WriteLineNoTabs(addVoyagerCode.InnerWriter.ToString());
@@ -342,7 +352,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			PropertyDataSource.Header => $"GetHeaderValue{suffix}",
 			_ => "__",
 		};
-		return $"await modelBinder.{providerFunction}<{typeName}>(\"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")})";
+		return $"await modelBinder.{providerFunction}<{typeName.Trim('?')}>(\"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")})";
 	}
 
 	private void InjectProperties(INamedTypeSymbol? @class, TextWriter code)
