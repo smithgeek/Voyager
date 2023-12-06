@@ -225,10 +225,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						var typedReturn = method.IsIResult ? "(IResult)" : "TypedResults.Ok";
 						code.WriteLine($"return {typedReturn}({awaitCode}endpoint.{httpMethod}({string.Join(", ", parameters)}));");
 						code.Indent--;
-						code.WriteLine("}).WithOpenApi(operation =>");
+						code.WriteLine("}).WithMetadata((new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
 						code.WriteLine("{");
 						code.Indent++;
-						code.WriteLine("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, operation);");
+						code.WriteLine("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());");
 						foreach (var property in requestObject.Properties.Where(p =>
 							parameterSources.Contains(p.DataSource)))
 						{
@@ -245,16 +245,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							code.WriteLine($"builder.AddResponse({result.StatusCode}, {(result.Type == null ? "null" : $"typeof({result.Type})")});");
 						}
-						code.WriteLine("return builder.Build();");
+						code.WriteLine("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
 						code.Indent--;
 
 						if (configureMethod != null)
 						{
-							code.WriteLine("}));");
+							code.WriteLine("}))()));");
 						}
 						else
 						{
-							code.WriteLine("});");
+							code.WriteLine("}))());");
 						}
 						code.Indent--;
 
