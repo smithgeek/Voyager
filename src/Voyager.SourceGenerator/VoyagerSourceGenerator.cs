@@ -473,6 +473,18 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public bool IsTask { get; set; } = false;
 		public ITypeSymbol? ReturnType { get; set; }
 
+		private IEnumerable<(string, string?)> GetResultFromType(ITypeSymbol? type)
+		{
+			if (type != null && type.ToDisplayString().StartsWith("Microsoft.AspNetCore.Http.HttpResults"))
+			{
+				if (type is INamedTypeSymbol namedSymbol && namedSymbol.TypeArguments.Any())
+				{
+					return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", namedSymbol.TypeArguments[0].ToDisplayString()) }; ;
+				}
+				return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", null) };
+			}
+			return Enumerable.Empty<(string, string?)>();
+		}
 		private IEnumerable<(string, string?)> GetResultFromExpression(ExpressionSyntax? expression)
 		{
 			if (expression != null)
@@ -482,13 +494,26 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					return GetResultFromExpression(conditional.WhenTrue).Concat(
 						GetResultFromExpression(conditional.WhenFalse));
 				}
+				else if(expression is AwaitExpressionSyntax awaitSyntax)
+				{
+					return FindResultsInNodes(awaitSyntax.DescendantNodes(), true);
+				}
+				else if(expression is CastExpressionSyntax castExpression)
+				{
+					return GetResultFromExpression(castExpression.Expression);
+				}
+				else if(expression is ParenthesizedExpressionSyntax parenSyntax)
+				{
+					return GetResultFromExpression(parenSyntax.Expression);
+				}
 				var model = semanticModel.GetSymbolInfo(expression);
 				if (model.Symbol is ILocalSymbol localSymbol)
 				{
 					var type = localSymbol.Type;
-					if (type.ToDisplayString().StartsWith("Microsoft.AspNetCore.Http.HttpResults"))
+					var typeResults = GetResultFromType(type);
+					if (typeResults.Any())
 					{
-						return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", null) };
+						return typeResults;
 					}
 				}
 				else if (model.Symbol is IMethodSymbol methodSymbol)
@@ -503,6 +528,21 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			return Enumerable.Empty<(string, string?)>();
 		}
 
+		public List<(string StatusCode, string? Type)> FindResultsInNodes(IEnumerable<SyntaxNode> nodes, bool allowLambda)
+		{
+			List<(string StatusCode, string? Type)> results = [];
+			var returns = nodes.OfType<ReturnStatementSyntax>()
+					.Where(rs => allowLambda || !rs.AncestorsAndSelf().OfType<LambdaExpressionSyntax>().Any() &&
+						!rs.AncestorsAndSelf().OfType<LocalFunctionStatementSyntax>().Any())
+					.Where(n => n.IsKind(SyntaxKind.ReturnStatement)).ToList();
+			foreach (var statement in returns)
+			{
+				var expressionResults = GetResultFromExpression(statement.Expression);
+				results.AddRange(expressionResults);
+			}
+			return results;
+		}
+
 		public List<(string StatusCode, string? Type)> FindResults()
 		{
 			var results = new List<(string, string?)>();
@@ -515,15 +555,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 			if (method.Body != null)
 			{
-				var returns = method.Body.DescendantNodes().OfType<ReturnStatementSyntax>()
-					.Where(rs => !rs.AncestorsAndSelf().OfType<LambdaExpressionSyntax>().Any() &&
-						!rs.AncestorsAndSelf().OfType<LocalFunctionStatementSyntax>().Any())
-					.Where(n => n.IsKind(SyntaxKind.ReturnStatement)).ToList();
-				foreach (var statement in returns)
-				{
-					var expressionResults = GetResultFromExpression(statement.Expression);
-					results.AddRange(expressionResults);
-				}
+				results.AddRange(FindResultsInNodes(method.Body.DescendantNodes(), false));
 			}
 			return results;
 		}
