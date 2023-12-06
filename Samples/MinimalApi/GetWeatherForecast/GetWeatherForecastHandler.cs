@@ -42,9 +42,10 @@ namespace Shared.GetWeatherForecast
 			}
 			else if (request.Days > 10)
 			{
-				return TypedResults.BadRequest<int>(3);
+				return request.Days > 20 ? TypedResults.BadRequest(3) : TypedResults.BadRequest("nope");
 			}
 			var rng = new Random();
+
 			return TypedResults.Ok(Enumerable.Range(1, request.Days).Select(index => new GetWeatherForecastResponse
 			{
 				Date = DateTime.Now.AddDays(index),

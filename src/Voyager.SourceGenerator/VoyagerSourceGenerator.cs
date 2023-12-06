@@ -473,6 +473,36 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public bool IsTask { get; set; } = false;
 		public ITypeSymbol? ReturnType { get; set; }
 
+		private IEnumerable<(string, string?)> GetResultFromExpression(ExpressionSyntax? expression)
+		{
+			if (expression != null)
+			{
+				if (expression is ConditionalExpressionSyntax conditional)
+				{
+					return GetResultFromExpression(conditional.WhenTrue).Concat(
+						GetResultFromExpression(conditional.WhenFalse));
+				}
+				var model = semanticModel.GetSymbolInfo(expression);
+				if (model.Symbol is ILocalSymbol localSymbol)
+				{
+					var type = localSymbol.Type;
+					if (type.ToDisplayString().StartsWith("Microsoft.AspNetCore.Http.HttpResults"))
+					{
+						return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", null) };
+					}
+				}
+				else if (model.Symbol is IMethodSymbol methodSymbol)
+				{
+					if (methodSymbol.ReceiverType?.ToDisplayString() == "Microsoft.AspNetCore.Http.TypedResults")
+					{
+						var type = methodSymbol.IsGenericMethod ? methodSymbol.TypeArguments[0].ToDisplayString() : null;
+						return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", type) };
+					}
+				}
+			}
+			return Enumerable.Empty<(string, string?)>();
+		}
+
 		public List<(string StatusCode, string? Type)> FindResults()
 		{
 			var results = new List<(string, string?)>();
@@ -491,26 +521,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					.Where(n => n.IsKind(SyntaxKind.ReturnStatement)).ToList();
 				foreach (var statement in returns)
 				{
-					if (statement.Expression != null)
-					{
-						var model = semanticModel.GetSymbolInfo(statement.Expression);
-						if (model.Symbol is ILocalSymbol localSymbol)
-						{
-							var type = localSymbol.Type;
-							if (type.ToDisplayString().StartsWith("Microsoft.AspNetCore.Http.HttpResults"))
-							{
-								results.Add(($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", null));
-							}
-						}
-						else if (model.Symbol is IMethodSymbol methodSymbol)
-						{
-							if (methodSymbol.ReceiverType?.ToDisplayString() == "Microsoft.AspNetCore.Http.TypedResults")
-							{
-								var type = methodSymbol.IsGenericMethod ? methodSymbol.TypeArguments[0].ToDisplayString() : null;
-								results.Add(($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", type));
-							}
-						}
-					}
+					var expressionResults = GetResultFromExpression(statement.Expression);
+					results.AddRange(expressionResults);
 				}
 			}
 			return results;
