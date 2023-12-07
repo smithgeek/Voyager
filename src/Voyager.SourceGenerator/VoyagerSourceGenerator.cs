@@ -83,7 +83,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		code.WriteLine("namespace Voyager.Generated");
 		code.WriteLine("{");
 		code.Indent++;
-		
+
 		code.WriteLine("internal class EndpointMapper : Voyager.IVoyagerMapping");
 		code.WriteLine("{");
 		code.Indent++;
@@ -144,10 +144,19 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						var path = attribute.ArgumentList?.Arguments[0].DescendantTokens().First().ToString();
 
 						var hasBody = requestObject.Properties.Any(p => p.DataSource == PropertyDataSource.Body);
+						var createRequestObject = !bodiesCreated.Contains($"{requestType}Body");
+						if (createRequestObject)
+						{
+							bodiesCreated.Add($"{requestType}Body");
+						}
 
 						addVoyagerCode.WriteLine($"services.AddTransient<{classModel?.OriginalDefinition}>();");
 						code.Indent++;
 						code.Write("");
+						if (requestObject.NeedsValidating && createRequestObject)
+						{
+							code.WriteLine($"var inst{requestType}Validator = new {requestType}Validator();");
+						}
 						if (configureMethod != null)
 						{
 							code.Write($"{classModel?.OriginalDefinition}.Configure(");
@@ -159,11 +168,6 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						code.WriteLine($"var endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
 						InjectProperties(classModel, code);
 						code.WriteLine("var modelBinder = context.RequestServices.GetService<IModelBinder>() ?? new ModelBinder(context);");
-						var createRequestObject = !bodiesCreated.Contains($"{requestType}Body");
-						if (createRequestObject)
-						{
-							bodiesCreated.Add($"{requestType}Body");
-						}
 						if (hasBody)
 						{
 							code.WriteLine($"var body = await modelBinder.GetBody<{requestType}Body>();");
@@ -210,12 +214,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						var parameters = new[] { "request" }.Concat(parameterTypes.Where(p => p != null));
 						if (requestObject.NeedsValidating)
 						{
-							code.WriteLine($"var validator = new {requestType}Validator();");
-							if (requestObject.HasValidationMethod)
-							{
-								code.WriteLine($"{requestTypeInfo.Type?.OriginalDefinition}.AddValidationRules(validator);");
-							}
-							code.WriteLine($"var validationResult = await validator.ValidateAsync(request);");
+							code.WriteLine($"var validationResult = await inst{requestType}Validator.ValidateAsync(request);");
 							if (!parameters.Contains("validationResult"))
 							{
 								code.WriteLine("if(!validationResult.IsValid)");
@@ -274,6 +273,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 								{
 									newClassesCode.WriteLine($"RuleFor(r => r.{prop.Name}).NotNull();");
 								}
+							}
+							if (requestObject.HasValidationMethod)
+							{
+								newClassesCode.WriteLine($"{requestTypeInfo.Type?.OriginalDefinition}.AddValidationRules(this);");
 							}
 							newClassesCode.Indent--;
 							newClassesCode.WriteLine("}");

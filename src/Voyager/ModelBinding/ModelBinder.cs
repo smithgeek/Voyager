@@ -16,7 +16,6 @@ namespace Voyager.ModelBinding;
 public class ModelBinder : IModelBinder
 {
 	private readonly HttpContext httpContext;
-	private JsonElementValueProvider? bodyValueProvider;
 	private FormValueProvider? formValueProvider;
 	private JsonSerializerOptions? jsonOptions;
 	private QueryStringValueProvider? queryStringValueProvider;
@@ -31,9 +30,7 @@ public class ModelBinder : IModelBinder
 	{
 		try
 		{
-			bodyValueProvider ??= new JsonElementValueProvider(httpContext, GetJsonOptions());
-			var body = await bodyValueProvider.ParseBody<TValue>();
-			return body;
+			return await JsonSerializer.DeserializeAsync<TValue>(httpContext.Request.Body, GetJsonOptions());
 		}
 		catch (Exception)
 		{

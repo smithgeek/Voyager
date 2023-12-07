@@ -9,7 +9,13 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.8.1" />
-    <PackageReference Include="Voyager" Version="0.14.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
+  </ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+	</ItemGroup>
 </Project>

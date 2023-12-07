@@ -26,6 +26,15 @@ namespace VoyagerApi
 		public string? LastName { get; set; }
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
+
+		public static void AddValidationRules(AbstractValidator<Request> validator)
+		{
+			validator.RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
+			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
+			validator.RuleFor(x => x.Age).GreaterThan(10).WithMessage("too young");
+			validator.RuleFor(x => x.PhoneNumbers).NotEmpty().WithMessage("phone needed");
+		}
+
 	}
 
 	[VoyagerEndpoint("/benchmark/ok/{id}")]
@@ -51,18 +60,6 @@ namespace VoyagerApi
 				Age = req.Age,
 				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()
 			};
-		}
-
-	}
-
-	public class Validator : AbstractValidator<Request>
-	{
-		public Validator()
-		{
-			RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
-			RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
-			RuleFor(x => x.Age).GreaterThan(10).WithMessage("too young");
-			RuleFor(x => x.PhoneNumbers).NotEmpty().WithMessage("phone needed");
 		}
 	}
 
