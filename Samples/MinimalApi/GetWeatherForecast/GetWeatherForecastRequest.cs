@@ -1,5 +1,6 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using MinimalApi.GetWeatherForecast;
 using System.Text.Json.Serialization;
 
 namespace Shared.GetWeatherForecast
@@ -20,4 +21,5 @@ namespace Shared.GetWeatherForecast
 			validator.RuleFor(r => r.Days).GreaterThanOrEqualTo(1);
 		}
 	}
+
 }
