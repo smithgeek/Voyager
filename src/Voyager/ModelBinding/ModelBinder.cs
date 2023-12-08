@@ -8,10 +8,117 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Numerics;
 using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace Voyager.ModelBinding;
+
+public enum ModelBindingSource
+{
+	Route
+}
+
+public class ModelBinderSingleton : IModelBinderSingleton
+{
+	private JsonSerializerOptions? jsonOptions;
+
+	public TValue? GetRouteValue<TValue>(HttpContext httpContext, string key, DefaultValue<TValue>? defaultValue = null)
+	{
+		if (httpContext.Request.RouteValues.TryGetValue(key, out var value))
+		{
+			if (value is string routeString)
+			{
+				return Convert(httpContext, routeString, defaultValue);
+			}
+		}
+		return GetDefault(defaultValue);
+	}
+
+	public int GetRouteValueInt(HttpContext httpContext, string key, DefaultValue<int>? defaultValue = null)
+	{
+		if (httpContext.Request.RouteValues.TryGetValue(key, out var value))
+		{
+			if (value is string routeString && int.TryParse(routeString, out var result))
+			{
+				return result;
+			}
+		}
+		return GetDefault(defaultValue);
+	}
+
+	private static NumberFormatInfo numberFormatter = new();
+
+	public TNumber GetNumber<TNumber>(HttpContext context, ModelBindingSource source, string key, DefaultValue<TNumber>? defaultValue = null)
+		where TNumber : INumber<TNumber>
+	{
+		var value = GetStringValue(context, source, key);
+		if (value != null && TNumber.TryParse(value, numberFormatter, out var result))
+		{
+			return result;
+		}
+		if (defaultValue == null)
+		{
+			return TNumber.Zero;
+		}
+		return defaultValue.Value;
+	}
+
+	public bool TryGetNumber<TNumber>(HttpContext context, ModelBindingSource source, string key, out TNumber number, DefaultValue<TNumber>? defaultValue = null)
+		where TNumber : INumber<TNumber>
+	{
+		var value = GetStringValue(context, source, key);
+		if (value != null && TNumber.TryParse(value, numberFormatter, out var result))
+		{
+			number = result;
+			return true;
+		}
+		if (defaultValue == null)
+		{
+			number = TNumber.Zero;
+			return false;
+		}
+		number = defaultValue.Value;
+		return true;
+	}
+
+	private string? GetStringValue(HttpContext context, ModelBindingSource source, string key)
+	{
+		return source switch
+		{
+			ModelBindingSource.Route => context.Request.RouteValues.TryGetValue(key, out var value) && value is string routeString ? routeString : null,
+			_ => null
+		};
+	}
+
+	private TValue? Convert<TValue>(HttpContext httpContext, string? value, DefaultValue<TValue>? defaultValue = null)
+	{
+		if (value is TValue tValue)
+		{
+			return tValue;
+		}
+		if (value is null || value == string.Empty)
+		{
+			return GetDefault(defaultValue);
+		}
+		return JsonSerializer.Deserialize<TValue>(value, GetJsonOptions(httpContext));
+	}
+
+	private JsonSerializerOptions GetJsonOptions(HttpContext httpContext)
+	{
+		jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
+		return jsonOptions;
+	}
+
+	private static TValue? GetDefault<TValue>(DefaultValue<TValue>? value)
+	{
+		if (value == null)
+		{
+			return default;
+		}
+		return value.Value;
+	}
+}
 
 public class ModelBinder : IModelBinder
 {

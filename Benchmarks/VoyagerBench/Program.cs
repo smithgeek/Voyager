@@ -1,12 +1,11 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
-using Voyager;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Services
 	.AddAuthorization();
-builder.Services.AddVoyager();
+builder.Services.AddVoyager2();
 
 var app = builder.Build();
 app.UseAuthorization();
@@ -18,7 +17,12 @@ namespace VoyagerApi
 {
 	public partial class Program { }
 
-	public class Request
+	interface IRequestValidation<TRequest>
+	{
+		static abstract void AddValidationRules(AbstractValidator<TRequest> validator);
+	}
+
+	public class Request : IRequestValidation<Request>
 	{
 		[FromRoute]
 		public int Id { get; set; }
@@ -37,8 +41,13 @@ namespace VoyagerApi
 
 	}
 
-	[VoyagerEndpoint("/benchmark/ok/{id}")]
-	public class Endpoint
+	interface IConfigurableEndpoint
+	{
+		static abstract void Configure(RouteHandlerBuilder routeHandlerBuilder);
+	}
+
+	//[VoyagerEndpoint("/benchmark/ok/{id}")]
+	public class Endpoint : IConfigurableEndpoint
 	{
 		public Endpoint(ILogger<Program> logger)
 		{

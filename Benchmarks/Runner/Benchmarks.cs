@@ -41,6 +41,20 @@ public class Benchmarks
 		Encoding.UTF8,
 		"application/json");
 
+	[Benchmark]
+	public Task AspNetCoreMvc()
+	{
+		var msg = new HttpRequestMessage
+		{
+			Method = HttpMethod.Post,
+			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
+			Content = _payload
+		};
+
+		return MvcClient.SendAsync(msg);
+	}
+
+
 	[Benchmark(Baseline = true)]
 	public Task Voyager()
 	{
@@ -48,6 +62,19 @@ public class Benchmarks
 		{
 			Method = HttpMethod.Post,
 			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark/ok/123"),
+			Content = _payload
+		};
+
+		return VoyagerClient.SendAsync(msg);
+	}
+
+	[Benchmark]
+	public Task VoyagerSpecialized()
+	{
+		var msg = new HttpRequestMessage
+		{
+			Method = HttpMethod.Post,
+			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark2/ok/123"),
 			Content = _payload
 		};
 
@@ -107,18 +134,6 @@ public class Benchmarks
 		return FeScopedValidatorClient.SendAsync(msg);
 	}
 
-	//[Benchmark]
-	public Task AspNetCoreMvc()
-	{
-		var msg = new HttpRequestMessage
-		{
-			Method = HttpMethod.Post,
-			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
-			Content = _payload
-		};
-
-		return MvcClient.SendAsync(msg);
-	}
 
 	//[Benchmark]
 	public Task FastEndpointsThrottling()
