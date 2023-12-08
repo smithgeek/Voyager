@@ -99,17 +99,13 @@ namespace Voyager.Generated2
 		public void MapEndpoints(WebApplication app)
 		{
 			var instRequestValidator = new RequestValidator();
-			var singletonModelBinder = new ModelBinderSingleton();
+			var modelBinder = new ModelBinder();
 			var endpoint = app.Services.GetRequiredService<VoyagerApi.Endpoint>();
 			var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
 			VoyagerApi.Endpoint.Configure(app.MapPost("/benchmark/ok/{id}", async (HttpContext context) =>
 			{
 				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, jsonOptions);
-				request.Id = singletonModelBinder.GetNumber<int>(context, ModelBindingSource.Route, "id");
-				if (singletonModelBinder.TryGetNumber<int>(context, ModelBindingSource.Route, "sdf", out var number, 3))
-				{
-
-				}
+				request.Id = modelBinder.GetNumber<int>(context, ModelBindingSource.Route, "id");
 				var validationResult = await instRequestValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
@@ -127,10 +123,15 @@ namespace Voyager.Generated2
 			}))()));
 			VoyagerApi.Endpoint.Configure(app.MapPost("/benchmark2/ok/{id}", async (HttpContext context) =>
 			{
-
-				//var modelBinder = context.RequestServices.GetService<IModelBinder>() ?? new ModelBinder(context);
-				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, jsonOptions);
-				request.Id = singletonModelBinder.GetRouteValue<int>(context, "id");
+				var body = await JsonSerializer.DeserializeAsync<RequestBody>(context.Request.Body, jsonOptions);
+				var request = new VoyagerApi.Request
+				{
+					Age = body.age,
+					FirstName = body.firstName,
+					LastName = body.lastName,
+					PhoneNumbers = body.phoneNumbers,
+					Id = modelBinder.GetNumber<int>(context, ModelBindingSource.Route, "id")
+				};
 				var validationResult = await instRequestValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{

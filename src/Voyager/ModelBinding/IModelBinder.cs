@@ -7,22 +7,12 @@ namespace Voyager.ModelBinding;
 
 public interface IModelBinder
 {
-	ValueTask<TValue?> GetBody<TValue>();
-	ValueTask<TValue?> GetCookieValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
-	ValueTask<IEnumerable<TValue>> GetCookieValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
-	ValueTask<TValue?> GetFormValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
-	ValueTask<IEnumerable<TValue>> GetFormValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
-	ValueTask<TValue?> GetHeaderValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
-	ValueTask<IEnumerable<TValue>> GetHeaderValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
-	ValueTask<TValue?> GetQueryStringValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
-	ValueTask<IEnumerable<TValue>> GetQueryStringValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
-	ValueTask<TValue?> GetRouteValue<TValue>(string key, DefaultValue<TValue>? defaultValue = null);
-	ValueTask<IEnumerable<TValue>> GetRouteValues<TValue>(string key, DefaultValue<IEnumerable<TValue>>? defaultValue = null);
-}
-
-public interface IModelBinderSingleton
-{
+	bool GetBool(HttpContext context, ModelBindingSource source, string key, DefaultValue<bool>? defaultValue = null);
+	IEnumerable<bool> GetBoolEnumerable(HttpContext context, ModelBindingSource source, string key, DefaultValue<IEnumerable<bool>>? defaultValue = null);
 	TNumber GetNumber<TNumber>(HttpContext context, ModelBindingSource source, string key, DefaultValue<TNumber>? defaultValue = null) where TNumber : INumber<TNumber>;
-	TValue? GetRouteValue<TValue>(HttpContext httpContext, string key, DefaultValue<TValue>? defaultValue = null);
-	int GetRouteValueInt(HttpContext httpContext, string key, DefaultValue<int>? defaultValue = null);
+	IEnumerable<TNumber> GetNumberEnumerable<TNumber>(HttpContext context, ModelBindingSource source, string key, DefaultValue<IEnumerable<TNumber>>? defaultValue = null) where TNumber : INumber<TNumber>;
+	TObject? GetObject<TObject>(HttpContext context, ModelBindingSource source, string key, DefaultValue<TObject>? defaultValue = null) where TObject : class;
+	string GetString(HttpContext context, ModelBindingSource source, string key, DefaultValue<string>? defaultValue = null);
+	bool TryGetBool(HttpContext context, ModelBindingSource source, string key, out bool boolean, DefaultValue<bool>? defaultValue = null);
+	bool TryGetString(HttpContext context, ModelBindingSource source, string key, out string result, DefaultValue<string>? defaultValue = null);
 }
