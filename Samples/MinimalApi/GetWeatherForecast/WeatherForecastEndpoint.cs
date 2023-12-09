@@ -1,6 +1,7 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Voyager;
+using MyInt = int;
 
 namespace MinimalApi.GetWeatherForecast;
 
@@ -38,7 +39,7 @@ public class WeatherForecastRequest
 	public required string City { get; set; }
 
 	[FromQuery(Name = "d")]
-	public int Days { get; set; } = 5;
+	public MyInt Days { get; set; } = 5;
 
 	public static void AddValidationRules(AbstractValidator<WeatherForecastRequest> validator)
 	{

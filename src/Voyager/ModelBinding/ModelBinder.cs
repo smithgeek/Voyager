@@ -1,25 +1,20 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Json;
-using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Primitives;
-using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
-using System.Net.Http;
 using System.Numerics;
 using System.Text.Json;
-using System.Threading.Tasks;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace Voyager.ModelBinding;
 
 public enum ModelBindingSource
 {
 	Route,
-	QueryString,
+	Query,
 	Cookie,
 	Header,
 	Form
@@ -138,7 +133,7 @@ public class ModelBinder : IModelBinder
 		if (values != StringValues.Empty)
 		{
 			return ParseNumbers<TNumber>(values);
-			
+
 		}
 		return defaultValue == null ? Enumerable.Empty<TNumber>() : defaultValue.Value;
 
@@ -162,7 +157,7 @@ public class ModelBinder : IModelBinder
 	{
 		var value = GetStringValues(context, source, key);
 		TObject? obj = null;
-		if(value != StringValues.Empty)
+		if (value != StringValues.Empty)
 		{
 			obj = JsonSerializer.Deserialize<TObject>(value.ToString(), GetJsonOptions(context));
 		}
@@ -177,7 +172,7 @@ public class ModelBinder : IModelBinder
 			ModelBindingSource.Cookie => context.Request.Cookies.TryGetValue(key, out var value) ? value : null,
 			ModelBindingSource.Form => context.Request.Form.TryGetValue(key, out var values) ? values : StringValues.Empty,
 			ModelBindingSource.Header => context.Request.Headers.TryGetValue(key, out var values) ? values : StringValues.Empty,
-			ModelBindingSource.QueryString => context.Request.Query.TryGetValue(key, out var values) ? values : StringValues.Empty,
+			ModelBindingSource.Query => context.Request.Query.TryGetValue(key, out var values) ? values : StringValues.Empty,
 			_ => StringValues.Empty
 		};
 	}

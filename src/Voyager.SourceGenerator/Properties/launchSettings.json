@@ -2,7 +2,7 @@
   "profiles": {
     "SourceGenerator": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\..\\Benchmarks\\VoyagerBench\\VoyagerBench.csproj"
+      "targetProject": "..\\..\\Samples\\MinimalApi\\MinimalApi.csproj"
     }
   }
 }

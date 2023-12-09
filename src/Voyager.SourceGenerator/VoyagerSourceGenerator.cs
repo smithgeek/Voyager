@@ -2,26 +2,48 @@
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
-using System.CodeDom.Compiler;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Reflection;
 
 namespace Voyager.SourceGenerator;
 
-internal enum PropertyDataSource
+public enum ModelBindingSource
 {
-	Query,
 	Route,
-	Form,
-	Body,
+	Query,
+	Cookie,
 	Header,
-	Cookie
+	Form,
+	Body
 }
 
-public static class Extensions
+public static class Extension
 {
+	public static string? GetInstanceOf(this ITypeSymbol? type)
+	{
+		if (type is null)
+		{
+			return null;
+		}
+		var typeName = type.ToDisplayString().Trim('?');
+		if (typeName == "Microsoft.AspNetCore.Http.HttpContext")
+		{
+			return "context";
+		}
+		else if (typeName == "System.Threading.CancellationToken")
+		{
+			return "context.RequestAborted";
+		}
+		else if (typeName == "FluentValidation.Results.ValidationResult")
+		{
+			return "validationResult";
+		}
+		else
+		{
+			return "context.RequestServices.GetRequiredService<{typeName}>();";
+		}
+	}
 }
 
 [Generator]
@@ -29,11 +51,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 {
 	private const string IResultInterface = "Microsoft.AspNetCore.Http.IResult";
 
-	private readonly PropertyDataSource[] parameterSources = [
-		PropertyDataSource.Query,
-		PropertyDataSource.Route,
-		PropertyDataSource.Header,
-		PropertyDataSource.Cookie
+	private readonly ModelBindingSource[] parameterSources = [
+		ModelBindingSource.Query,
+		ModelBindingSource.Route,
+		ModelBindingSource.Header,
+		ModelBindingSource.Cookie,
 	];
 
 	public void Execute(GeneratorExecutionContext context)
@@ -46,49 +68,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 	}
 
-	private string EndpointMapping(GeneratorExecutionContext context)
+	private IEnumerable<EndpointClass> GetEndpointClasses(GeneratorExecutionContext context)
 	{
-		var bodiesCreated = new HashSet<string>();
-		var newClassesCode = new IndentedTextWriter(new StringWriter());
-		newClassesCode.Indent++;
-		newClassesCode.WriteLine();
-		var addVoyagerCode = new IndentedTextWriter(new StringWriter());
-		addVoyagerCode.WriteLine();
-		addVoyagerCode.WriteLine("namespace Microsoft.Extensions.DependencyInjection");
-		addVoyagerCode.WriteLine("{");
-		addVoyagerCode.Indent++;
-		addVoyagerCode.WriteLine();
-
-		addVoyagerCode.WriteLine("internal static class VoyagerEndpoints");
-		addVoyagerCode.WriteLine("{");
-		addVoyagerCode.Indent++;
-
-		addVoyagerCode.WriteLine("internal static void AddVoyager(this IServiceCollection services)");
-		addVoyagerCode.WriteLine("{");
-		addVoyagerCode.Indent++;
-		var code = new IndentedTextWriter(new StringWriter());
-		code.WriteLine("#nullable disable");
-		code.WriteLine("using FluentValidation;");
-		code.WriteLine("using Microsoft.AspNetCore.Builder;");
-		code.WriteLine("using Microsoft.AspNetCore.Http;");
-		code.WriteLine("using Microsoft.AspNetCore.Routing;");
-		code.WriteLine("using Microsoft.Extensions.DependencyInjection;");
-		code.WriteLine("using Microsoft.OpenApi.Models;");
-		code.WriteLine("using System;");
-		code.WriteLine("using System.Collections.Generic;");
-		code.WriteLine("using System.Threading;");
-		code.WriteLine("using Voyager;");
-		code.WriteLine("using Voyager.ModelBinding;");
-		code.WriteLine();
-		code.WriteLine("namespace Voyager.Generated");
-		code.WriteLine("{");
-		code.Indent++;
-
-		code.WriteLine("internal class EndpointMapper : Voyager.IVoyagerMapping");
-		code.WriteLine("{");
-		code.Indent++;
-		code.WriteLine("public void MapEndpoints(WebApplication app)");
-		code.WriteLine("{");
 		var treesWithClassesWithAttributes = context.Compilation.SyntaxTrees.Where(
 			st => st.GetRoot().DescendantNodes().OfType<ClassDeclarationSyntax>()
 				.Any(p => p.DescendantNodes().OfType<AttributeSyntax>().Any()));
@@ -123,316 +104,369 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					continue;
 				}
 
-				var httpMethods = new[] { "Get", "Put", "Post", "Delete", "Patch" };
-				foreach (var (methodSyntax, httpMethod) in @class.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
-					.Select(m => (m, httpMethods.FirstOrDefault(httpMethod => m.Identifier.ToString().Equals(httpMethod, StringComparison.OrdinalIgnoreCase))))
-					.Where((tuple) => tuple.Item2 != null))
+				yield return new EndpointClass(@class, semanticModel, attribute);
+			}
+		}
+	}
+
+	private string EndpointMapping(GeneratorExecutionContext context)
+	{
+		var source = new SourceBuilder();
+		source.AddDirective("#nullable disable")
+			.AddUsing("FluentValidation")
+			.AddUsing("Microsoft.AspNetCore.Builder")
+			.AddUsing("Microsoft.AspNetCore.Http.Json")
+			.AddUsing("Microsoft.Extensions.DependencyInjection")
+			.AddUsing("Microsoft.Extensions.Options")
+			.AddUsing("System.Text.Json")
+			.AddUsing("Voyager")
+			.AddUsing("Voyager.ModelBinding");
+
+		var voyagerGenNs = source.AddNamespace("Voyager.Generated");
+		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
+			.AddClass(new("VoyagerEndpoints", Access.Internal, isStatic: true))
+			.AddMethod(new("AddVoyager", access: Access.Internal, isStatic: true))
+			.AddParameter("this IServiceCollection services");
+		var endpointMapper = voyagerGenNs
+			.AddClass(new("EndpointMapper"));
+		var mapEndpoints = endpointMapper
+			.AddBase("Voyager.IVoyagerMapping")
+			.AddMethod(new("MapEndpoints", access: Access.Public))
+			.AddParameter("WebApplication app");
+		var endpointsInitRegion = mapEndpoints.AddRegion();
+		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
+		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
+
+		foreach (var endpointClass in GetEndpointClasses(context))
+		{
+			foreach (var endpoint in endpointClass.EndpointMethods)
+			{
+				if (endpoint.Request != null)
 				{
-					var method = new EndpointMethod(methodSyntax, semanticModel);
-					var configureMethod = @class.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
-						.Where(m => m.Identifier.ToString() == "Configure").FirstOrDefault();
+					var request = endpoint.Request;
 
-					var requestTypeSyntax = methodSyntax.ParameterList.Parameters.First().Type;
-					var requestType = string.Empty;
-					if (requestTypeSyntax is IdentifierNameSyntax name)
+					GenerateRequestBodyClasses(endpointMapper, endpointsInitRegion, request);
+
+					servicesMethod.AddStatement($"services.AddTransient<{endpointClass.FullName}>();");
+					if (endpointClass.Configure != null)
 					{
-						requestType = name.Identifier.ToFullString().Trim();
-						var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
-						var requestObject = ParseRequestObject(requestTypeInfo);
+						mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
+					}
+					mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} (HttpContext context) =>");
+					var mapContent = mapEndpoints.AddScope();
 
-						var classModel = semanticModel.GetDeclaredSymbol(@class);
-						var path = attribute.ArgumentList?.Arguments[0].DescendantTokens().First().ToString();
-
-						var hasBody = requestObject.Properties.Any(p => p.DataSource == PropertyDataSource.Body);
-						var createRequestObject = !bodiesCreated.Contains($"{requestType}Body");
-						if (createRequestObject)
+					if (endpointClass.CanBeSingleton)
+					{
+						endpointsInitRegion.AddStatement($"var {endpointClass.InstanceName} = app.Services.GetRequiredService<{endpointClass.FullName}>();");
+					}
+					else
+					{
+						mapContent.AddStatement($"var {endpointClass.InstanceName} = context.RequestServices.GetRequiredService<{endpointClass.FullName}>();");
+					}
+					foreach (var property in endpointClass.GetPropertiesNeedingInjected())
+					{
+						mapContent.AddStatement($"{endpointClass.InstanceName}.{property.Name} = {property.Type.GetInstanceOf()};");
+					}
+					if (request.HasBody)
+					{
+						mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.FullName}>(context.Request.Body, jsonOptions);");
+					}
+					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}", ";"));
+					foreach (var property in request.Properties)
+					{
+						if (property.DataSource == ModelBindingSource.Body)
 						{
-							bodiesCreated.Add($"{requestType}Body");
-						}
-
-						addVoyagerCode.WriteLine($"services.AddTransient<{classModel?.OriginalDefinition}>();");
-						code.Indent++;
-						code.Write("");
-						if (requestObject.NeedsValidating && createRequestObject)
-						{
-							code.WriteLine($"var inst{requestType}Validator = new {requestType}Validator();");
-						}
-						if (configureMethod != null)
-						{
-							code.Write($"{classModel?.OriginalDefinition}.Configure(");
-						}
-						var needsAsync = method.IsTask || requestObject.NeedsValidating || requestObject.Properties.Any();
-						code.WriteLine($"app.Map{httpMethod}({path}, {(needsAsync ? "async" : "")} (HttpContext context) =>");
-						code.WriteLine("{");
-						code.Indent++;
-						code.WriteLine($"var endpoint = context.RequestServices.GetRequiredService<{classModel?.OriginalDefinition}>();");
-						InjectProperties(classModel, code);
-						code.WriteLine("var modelBinder = context.RequestServices.GetService<IModelBinder>() ?? new ModelBinder(context);");
-						if (hasBody)
-						{
-							code.WriteLine($"var body = await modelBinder.GetBody<{requestType}Body>();");
-							if (createRequestObject)
-							{
-								newClassesCode.WriteLine($"private class {requestType}Body");
-								newClassesCode.WriteLine("{");
-								newClassesCode.Indent++;
-							}
-						}
-						code.WriteLine($"var request = new {requestTypeInfo.Type?.OriginalDefinition}");
-						code.WriteLine("{");
-						code.Indent++;
-						foreach (var property in requestObject.Properties)
-						{
-							if (property.DataSource == PropertyDataSource.Body)
-							{
-								var defaultValue = property.DefaultValue ?? "default";
-								code.WriteLine($"{property.Property.Name} = body?.{property.SourceName} ?? {defaultValue},");
-								if (createRequestObject)
-								{
-									foreach (var attr in property.Property.GetAttributes())
-									{
-										newClassesCode.WriteLine($"[{attr}]");
-									}
-									newClassesCode.WriteLine($"public {property.Property.Type.ToString().Trim('?')} {property.SourceName} {{ get; set; }}");
-								}
-							}
-							else
-							{
-								code.WriteLine($"{property.Property.Name} = {GetPropertyAssignment(property)},");
-							}
-						}
-						if (hasBody && createRequestObject)
-						{
-							newClassesCode.Indent--;
-							newClassesCode.WriteLine("}");
-						}
-						code.Indent--;
-						code.WriteLine("};");
-						var awaitCode = method.IsTask ? "await " : "";
-
-						var parameterTypes = methodSyntax.ParameterList.Parameters.Skip(1).Select(p => GetInstanceOf(semanticModel.GetTypeInfo(p.Type!).Type));
-						var parameters = new[] { "request" }.Concat(parameterTypes.Where(p => p != null));
-						if (requestObject.NeedsValidating)
-						{
-							code.WriteLine($"var validationResult = await inst{requestType}Validator.ValidateAsync(request);");
-							if (!parameters.Contains("validationResult"))
-							{
-								code.WriteLine("if(!validationResult.IsValid)");
-								code.WriteLine("{");
-								code.WriteLine("\treturn Results.ValidationProblem(validationResult.ToDictionary());");
-								code.WriteLine("}");
-							}
-						}
-						var typedReturn = method.IsIResult ? "(IResult)" : "TypedResults.Ok";
-						code.WriteLine($"return {typedReturn}({awaitCode}endpoint.{httpMethod}({string.Join(", ", parameters)}));");
-						code.Indent--;
-						code.WriteLine("}).WithMetadata((new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
-						code.WriteLine("{");
-						code.Indent++;
-						code.WriteLine("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());");
-						foreach (var property in requestObject.Properties.Where(p =>
-							parameterSources.Contains(p.DataSource)))
-						{
-							var location = property.DataSource == PropertyDataSource.Route ? "Path" : Enum.GetName(typeof(PropertyDataSource), property.DataSource);
-							code.WriteLine($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}));");
-						}
-						if (hasBody)
-						{
-							code.WriteLine($"builder.AddBody(typeof({requestType}Body));");
-						}
-
-						code.WriteLine("builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));");
-						foreach (var result in method.FindResults())
-						{
-							code.WriteLine($"builder.AddResponse({result.StatusCode}, {(result.Type == null ? "null" : $"typeof({result.Type})")});");
-						}
-						code.WriteLine("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
-						code.Indent--;
-
-						if (configureMethod != null)
-						{
-							code.WriteLine("}))()));");
+							var defaultValue = property.DefaultValue ?? "default";
+							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue},");
 						}
 						else
 						{
-							code.WriteLine("}))());");
-						}
-						code.Indent--;
-
-						if (requestObject.NeedsValidating && createRequestObject)
-						{
-							newClassesCode.WriteLine($"public class {requestType}Validator : AbstractValidator<{requestTypeInfo.Type?.OriginalDefinition}>");
-							newClassesCode.WriteLine("{");
-							newClassesCode.Indent++;
-							newClassesCode.WriteLine($"public {requestType}Validator()");
-							newClassesCode.WriteLine("{");
-							newClassesCode.Indent++;
-							foreach (var prop in requestObject.Properties)
-							{
-								if (prop.IsRequired)
-								{
-									newClassesCode.WriteLine($"RuleFor(r => r.{prop.Name}).NotNull();");
-								}
-							}
-							if (requestObject.HasValidationMethod)
-							{
-								newClassesCode.WriteLine($"{requestTypeInfo.Type?.OriginalDefinition}.AddValidationRules(this);");
-							}
-							newClassesCode.Indent--;
-							newClassesCode.WriteLine("}");
-
-							newClassesCode.Indent--;
-							newClassesCode.WriteLine("}");
+							AddPropertyAssignment(property, requestInit);
 						}
 					}
+					var awaitCode = endpoint.IsTask ? "await " : "";
+
+					var parameters = new[] { "request" }.Concat(endpoint.GetInjectedParameters());
+					if (request.NeedsValidating)
+					{
+						mapContent.AddStatement($"var validationResult = await inst{request.ValidatorClass}.ValidateAsync(request);");
+						if (!parameters.Contains("validationResult"))
+						{
+							var @if = mapContent.AddIf("!validationResult.IsValid");
+							@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
+						}
+					}
+					var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
+					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+					mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
+					AddOpenApiMetadata(mapEndpoints, endpoint, request);
+
+					mapEndpoints.AddStatement($")()){(endpointClass.Configure == null ? "" : ")")};");
 				}
 			}
 		}
 
-		addVoyagerCode.WriteLine($"services.AddTransient<IVoyagerMapping, Voyager.Generated.EndpointMapper>();");
+		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.EndpointMapper>();");
 
-		code.WriteLine("}");
-		code.Indent--;
-		code.WriteLine();
-		code.WriteLineNoTabs(newClassesCode.InnerWriter.ToString());
-		code.Indent--;
-		code.WriteLine("}");
-		code.Indent--;
-		code.WriteLine("}");
-
-		addVoyagerCode.Indent--;
-		addVoyagerCode.WriteLine("}");
-		addVoyagerCode.Indent--;
-		addVoyagerCode.WriteLine("}");
-		code.WriteLineNoTabs(addVoyagerCode.InnerWriter.ToString());
-		code.Indent--;
-		code.WriteLine("}");
-		return code.InnerWriter.ToString();
+		return source.Build();
 	}
 
-	private string? GetInstanceOf(ITypeSymbol? type)
+	private static void GenerateRequestBodyClasses(ClassBuilder code, CodeBuilder endpointsInitRegion, RequestObject request)
 	{
-		if (type is null)
+		if (code.Classes.All(c => c.Name != request.BodyClass))
 		{
-			return null;
-		}
-		var typeName = type.ToDisplayString().Trim('?');
-		if (typeName == "Microsoft.AspNetCore.Http.HttpContext")
-		{
-			return "context";
-		}
-		else if (typeName == "System.Threading.CancellationToken")
-		{
-			return "context.RequestAborted";
-		}
-		else if (typeName == "FluentValidation.Results.ValidationResult")
-		{
-			return "validationResult";
-		}
-		else
-		{
-			return "context.RequestServices.GetRequiredService<{typeName}>();";
+			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private));
+			foreach (var bodyProp in request.BodyProperties)
+			{
+				var prop = requestBodyClass.AddProperty(new(bodyProp.Property.Type.ToString().Trim('?'), bodyProp.SourceName));
+				foreach (var attr in bodyProp.Property.GetAttributes())
+				{
+					prop.Attributes.Add(attr.ToString());
+				}
+			}
+			if (request.NeedsValidating)
+			{
+				CreateValidatorClass(code, request);
+				endpointsInitRegion.AddStatement($"var inst{request.ValidatorClass} = new {request.ValidatorClass}();");
+			}
 		}
 	}
 
-	private string GetPropertyAssignment(RequestProperty property)
+	private static void CreateValidatorClass(ClassBuilder code, RequestObject request)
+	{
+		var validatorClass = code.AddClass(new($"{request.ValidatorClass}", Access.Public));
+		validatorClass.AddBase($"AbstractValidator<{request.FullName}>");
+		var ctor = validatorClass.AddMethod(new($"{request.ValidatorClass}", "", Access.Public));
+		foreach (var prop in request.Properties)
+		{
+			if (prop.IsRequired)
+			{
+				ctor.AddStatement($"RuleFor(r => r.{prop.Name}).NotNull();");
+			}
+		}
+		if (request.HasValidationMethod)
+		{
+			ctor.AddStatement($"{request.FullName}.AddValidationRules(this);");
+		}
+	}
+
+	private void AddOpenApiMetadata(MethodBuilder mapEndpoints, Endpoint endpoint, RequestObject request)
+	{
+		var metadata = mapEndpoints.AddScope();
+		metadata.AddStatement("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());");
+		foreach (var property in request.Properties.Where(p =>
+			parameterSources.Contains(p.DataSource)))
+		{
+			var location = property.DataSource == ModelBindingSource.Route ? "Path" : Enum.GetName(typeof(ModelBindingSource), property.DataSource);
+			metadata.AddStatement($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}));");
+		}
+		if (request.HasBody)
+		{
+			metadata.AddStatement($"builder.AddBody(typeof({request.Name}Body));");
+		}
+
+		metadata.AddStatement("builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));");
+		foreach (var result in endpoint.FindResults())
+		{
+			metadata.AddStatement($"builder.AddResponse({result.StatusCode}, {(result.Type == null ? "null" : $"typeof({result.Type})")});");
+		}
+		metadata.AddStatement("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
+	}
+
+	private void AddPropertyAssignment(RequestProperty property, CodeBuilder code)
 	{
 		var parts = property.Property.Type.ToDisplayParts();
 		var typeName = property.Property.Type.ToDisplayString();
 		var isEnumerable = property.Property.Type.Name == "IEnumerable";
-		var suffix = isEnumerable ? "s" : "";
+		var suffix = isEnumerable ? "Enumerable" : "";
 
 		if (isEnumerable)
 		{
 			typeName = parts.Reverse().Skip(1).First().ToString();
 		}
-		var providerFunction = property.DataSource switch
+		var isNullable = typeName.EndsWith("?");
+		var prefix = string.Empty;
+		if (isNullable)
 		{
-			PropertyDataSource.Query => $"GetQueryStringValue{suffix}",
-			PropertyDataSource.Route => $"GetRouteValue{suffix}",
-			PropertyDataSource.Form => $"GetRouteValue{suffix}",
-			PropertyDataSource.Cookie => $"GetCookieValue{suffix}",
-			PropertyDataSource.Header => $"GetHeaderValue{suffix}",
-			_ => "__",
+			typeName = typeName.Trim('?');
+			prefix = "Try";
+		}
+
+		var specializationType = typeName switch
+		{
+			"byte" or "sbyte" or "decimal" or "double" or "float" or "int" or "uint" or "long" or "ulong" or "short" or "ushort" or "char" => "Number",
+			"bool" => "Bool",
+			"string" => "String",
+			_ => "Object",
 		};
-		return $"await modelBinder.{providerFunction}<{typeName.Trim('?')}>(\"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")})";
+		var genericType = string.Empty;
+		if (specializationType == "Object")
+		{
+			prefix = string.Empty;
+			suffix = string.Empty;
+			genericType = $"<{property.Property.Type.ToDisplayString().Trim('?')}>";
+		}
+		if (specializationType == "Number")
+		{
+			genericType = $"<{typeName}>";
+		}
+		var functionName = $"{prefix}Get{specializationType}{suffix}";
+		var source = Enum.GetName(typeof(ModelBindingSource), property.DataSource);
+		if (prefix == "Try")
+		{
+			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(context, ModelBindingSource.{source}, \"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}, out var val{property.Name}) ? val{property.Name} : default,");
+		}
+		else
+		{
+			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(context, ModelBindingSource.{source}, \"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}),");
+		}
 	}
 
-	private void InjectProperties(INamedTypeSymbol? @class, TextWriter code)
+	public class EndpointConfigureMethod(MethodDeclarationSyntax syntax)
 	{
-		if (@class != null)
+		private readonly MethodDeclarationSyntax syntax = syntax;
+	}
+
+	internal class EndpointClass
+	{
+		private readonly ClassDeclarationSyntax syntax;
+		private readonly string[] httpMethods = ["Get", "Put", "Post", "Delete", "Patch"];
+		private readonly List<Endpoint> endpointMethods = [];
+		public IReadOnlyList<Endpoint> EndpointMethods => endpointMethods;
+		public EndpointConfigureMethod? Configure { get; }
+		public string FullName { get; }
+		public string InstanceName => $"inst_{FullName.Replace(".", "_")}";
+		private readonly INamedTypeSymbol? classModel;
+		public string Path { get; }
+		public bool CanBeSingleton { get; }
+		private List<PropertyInfo> properties = [];
+
+		public EndpointClass(ClassDeclarationSyntax syntax, SemanticModel semanticModel, AttributeSyntax attribute)
 		{
-			var injectedProperties = @class?.GetMembers().Where(m =>
-				m.Kind == SymbolKind.Property
-				&& m is IPropertySymbol property
-				&& (property.IsRequired ||
-					property.GetAttributes().Any(attr => attr.AttributeClass?.ToString() == "Microsoft.AspNetCore.Mvc.FromServicesAttribute")))
-				.OfType<IPropertySymbol>();
-			if (injectedProperties != null)
+			this.syntax = syntax;
+			foreach (var (methodSyntax, httpMethod) in syntax.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
+					.Select(m => (m, httpMethods.FirstOrDefault(httpMethod => m.Identifier.ToString().Equals(httpMethod, StringComparison.OrdinalIgnoreCase))))
+					.Where((tuple) => tuple.Item2 != null))
 			{
-				foreach (var property in injectedProperties)
+				endpointMethods.Add(new Endpoint(methodSyntax, semanticModel, httpMethod));
+			}
+			var configureSyntax = syntax.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
+						.Where(m => m.Identifier.ToString() == "Configure").FirstOrDefault();
+			if (configureSyntax != null)
+			{
+				Configure = new EndpointConfigureMethod(configureSyntax);
+			}
+			classModel = semanticModel.GetDeclaredSymbol(syntax);
+			FullName = classModel?.OriginalDefinition.ToString() ?? string.Empty;
+			Path = attribute.ArgumentList?.Arguments[0].DescendantTokens().First().ToString() ?? string.Empty;
+			FindProperties();
+			CanBeSingleton = DetermineIfCanBeSingleton();
+		}
+
+		bool DetermineIfCanBeSingleton()
+		{
+			if (syntax.Members.Any(m => m.IsKind(SyntaxKind.FieldDeclaration))
+				|| properties.Any())
+			{
+				return false;
+			}
+			return true;
+		}
+
+		private void FindProperties()
+		{
+			if (classModel != null)
+			{
+				var propertySybmols = classModel?.GetMembers().Where(m =>
+					m.Kind == SymbolKind.Property
+					&& m is IPropertySymbol property)
+					.OfType<IPropertySymbol>();
+				if (propertySybmols != null)
 				{
-					code.WriteLine($"endpoint.{property.Name} = {GetInstanceOf(property.Type)};");
+					foreach (var property in propertySybmols)
+					{
+						var shouldInject = property.IsRequired ||
+							property.GetAttributes().Any(attr => attr.AttributeClass?.ToString() == "Microsoft.AspNetCore.Mvc.FromServicesAttribute");
+						properties.Add(new(property) { Injected = shouldInject });
+					}
 				}
 			}
 		}
-	}
 
-	private RequestObject ParseRequestObject(Microsoft.CodeAnalysis.TypeInfo requestType)
-	{
-		var requestObject = new RequestObject();
-		var properties = requestType.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
-		foreach (var property in properties.OfType<IPropertySymbol>())
+		public IEnumerable<IPropertySymbol> GetPropertiesNeedingInjected()
 		{
-			RequestProperty? requestProperty = null;
-			foreach (var attribute in property.GetAttributes())
-			{
-				var source = attribute.AttributeClass?.Name switch
-				{
-					"FromQueryAttribute" => PropertyDataSource.Query,
-					"FromRouteAttribute" => PropertyDataSource.Route,
-					"FromFormAttribute" => PropertyDataSource.Form,
-					"FromHeaderAttribute" => PropertyDataSource.Header,
-					"FromCookieAttribute" => PropertyDataSource.Cookie,
-					_ => PropertyDataSource.Body
-				};
-				requestProperty = new RequestProperty(property)
-				{
-					Attribute = attribute,
-					DataSource = source
-				};
-			}
-			requestProperty ??= new RequestProperty(property)
-			{
-				DataSource = PropertyDataSource.Body
-			};
-			if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
-					&& syntax.Initializer != null)
-			{
-				requestProperty.DefaultValue = syntax.Initializer.Value.ToString();
-			}
-			requestObject.Properties.Add(requestProperty);
+			return properties.Where(p => p.Injected).Select(p => p.PropertySymbol);
 		}
 
-		var validationMethods = requestType.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
-			&& m.Name.Equals("AddValidationRules", StringComparison.OrdinalIgnoreCase)).OfType<IMethodSymbol>();
-
-		foreach (var validationMethod in validationMethods ?? Enumerable.Empty<IMethodSymbol>())
+		private class PropertyInfo(IPropertySymbol propertySymbol)
 		{
-			var firstParam = validationMethod.Parameters.FirstOrDefault();
-			if (firstParam?.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestType.Type?.ToDisplayString()}>")
-			{
-				requestObject.HasValidationMethod = true;
-			}
+			public IPropertySymbol PropertySymbol { get; set; } = propertySymbol;
+			public bool Injected { get; set; } = false;
 		}
-		return requestObject;
 	}
 
 	internal class RequestObject
 	{
 		public bool HasValidationMethod { get; set; } = false;
-		public bool NeedsValidating => HasValidationMethod || Properties.Any(p => p.IsRequired);
-		public List<RequestProperty> Properties { get; set; } = [];
+		public bool NeedsValidating => HasValidationMethod || properties.Any(p => p.IsRequired);
+		private List<RequestProperty> properties { get; set; } = [];
+		public IReadOnlyList<RequestProperty> Properties => properties;
+		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
+		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
+		public string BodyClass => $"{Name}Body";
+		public string ValidatorClass => $"{Name}Validator";
+		public string Name { get; }
+		public string FullName { get; }
+
+		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo)
+		{
+			var properties = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
+			foreach (var property in properties.OfType<IPropertySymbol>())
+			{
+				RequestProperty? requestProperty = null;
+				foreach (var attribute in property.GetAttributes())
+				{
+					var source = attribute.AttributeClass?.Name switch
+					{
+						"FromQueryAttribute" => ModelBindingSource.Query,
+						"FromRouteAttribute" => ModelBindingSource.Route,
+						"FromFormAttribute" => ModelBindingSource.Form,
+						"FromHeaderAttribute" => ModelBindingSource.Header,
+						"FromCookieAttribute" => ModelBindingSource.Cookie,
+						_ => ModelBindingSource.Body
+					};
+					requestProperty = new RequestProperty(property)
+					{
+						Attribute = attribute,
+						DataSource = source
+					};
+				}
+				requestProperty ??= new RequestProperty(property)
+				{
+					DataSource = ModelBindingSource.Body
+				};
+				if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
+						&& syntax.Initializer != null)
+				{
+					requestProperty.DefaultValue = syntax.Initializer.Value.ToString();
+				}
+				this.properties.Add(requestProperty);
+			}
+
+			var validationMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
+				&& m.Name.Equals("AddValidationRules", StringComparison.OrdinalIgnoreCase)).OfType<IMethodSymbol>();
+
+			foreach (var validationMethod in validationMethods ?? Enumerable.Empty<IMethodSymbol>())
+			{
+				var firstParam = validationMethod.Parameters.FirstOrDefault();
+				if (firstParam?.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestTypeInfo.Type?.ToDisplayString()}>")
+				{
+					HasValidationMethod = true;
+				}
+			}
+			Name = requestType;
+			FullName = requestTypeInfo.Type?.OriginalDefinition?.ToString() ?? Name;
+		}
 	}
 
 	internal class RequestProperty(IPropertySymbol property)
@@ -440,7 +474,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public bool IsValueType => Property.Type.IsValueType;
 		public string? DefaultValue { get; set; }
 		public AttributeData? Attribute { get; set; }
-		public PropertyDataSource DataSource { get; set; } = PropertyDataSource.Body;
+		public ModelBindingSource DataSource { get; set; } = ModelBindingSource.Body;
 		public bool IsRequired => Property.IsRequired;
 		public IPropertySymbol Property { get; set; } = property;
 
@@ -460,12 +494,20 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string Name => Property.Name;
 	}
 
-	private class EndpointMethod
+	internal class Endpoint
 	{
 		private readonly MethodDeclarationSyntax method;
 		private readonly SemanticModel semanticModel;
+		public RequestObject? Request { get; }
+		public bool NeedsAsync => IsTask || (Request != null && Request.NeedsValidating);
 
-		public EndpointMethod(MethodDeclarationSyntax method, SemanticModel semanticModel)
+		public IEnumerable<string> GetInjectedParameters()
+		{
+			return method.ParameterList.Parameters.Skip(1)
+				.Select(p => semanticModel.GetTypeInfo(p.Type!).Type.GetInstanceOf()).Where(p => p != null)!;
+		}
+
+		public Endpoint(MethodDeclarationSyntax method, SemanticModel semanticModel, string httpMethod)
 		{
 			ReturnType = semanticModel.GetTypeInfo(method.ReturnType).Type;
 			if (ReturnType is INamedTypeSymbol namedSymbol &&
@@ -482,11 +524,22 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 			this.method = method;
 			this.semanticModel = semanticModel;
+			HttpMethod = httpMethod;
+
+			var requestTypeSyntax = method.ParameterList.Parameters.First().Type;
+			var requestType = string.Empty;
+			if (requestTypeSyntax is IdentifierNameSyntax name)
+			{
+				requestType = name.Identifier.ToFullString().Trim();
+				var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
+				Request = new RequestObject(requestType, requestTypeInfo);
+			}
 		}
 
 		public bool IsIResult { get; set; } = false;
 		public bool IsTask { get; set; } = false;
 		public ITypeSymbol? ReturnType { get; set; }
+		public string HttpMethod { get; }
 
 		private IEnumerable<(string, string?)> GetResultFromType(ITypeSymbol? type)
 		{

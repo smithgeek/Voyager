@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Runner;
 
-[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 1, iterationCount: 10, invocationCount: 10000)]
+[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 5, iterationCount: 20, invocationCount: 10000)]
 public class Benchmarks
 {
 	const string QueryObjectParams = "?id=101&FirstName=Name&LastName=LastName&Age=23&phoneNumbers[0]=223422&phonenumbers[1]=11144" +
@@ -69,12 +69,12 @@ public class Benchmarks
 	}
 
 	[Benchmark]
-	public Task VoyagerSpecialized()
+	public Task VoyagerManual()
 	{
 		var msg = new HttpRequestMessage
 		{
 			Method = HttpMethod.Post,
-			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark2/ok/123"),
+			RequestUri = new($"{VoyagerClient.BaseAddress}manual/benchmark/ok/123"),
 			Content = _payload
 		};
 
