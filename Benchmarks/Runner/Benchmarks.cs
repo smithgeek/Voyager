@@ -54,6 +54,19 @@ public class Benchmarks
 		return MvcClient.SendAsync(msg);
 	}
 
+	[Benchmark]
+	public Task MinimalApi()
+	{
+		var msg = new HttpRequestMessage
+		{
+			Method = HttpMethod.Post,
+			RequestUri = new($"{MinimalClient.BaseAddress}benchmark/ok/123"),
+			Content = _payload
+		};
+
+		return MinimalClient.SendAsync(msg);
+	}
+
 
 	[Benchmark(Baseline = true)]
 	public Task Voyager()
@@ -68,8 +81,8 @@ public class Benchmarks
 		return VoyagerClient.SendAsync(msg);
 	}
 
-	[Benchmark]
-	public Task VoyagerManual()
+	//[Benchmark]
+	public Task VoyagerTests()
 	{
 		var msg = new HttpRequestMessage
 		{
@@ -81,7 +94,7 @@ public class Benchmarks
 		return VoyagerClient.SendAsync(msg);
 	}
 
-	//[Benchmark]
+	[Benchmark]
 	public Task FastEndpoints()
 	{
 		var msg = new HttpRequestMessage
@@ -94,18 +107,7 @@ public class Benchmarks
 		return FastEndpointClient.SendAsync(msg);
 	}
 
-	[Benchmark]
-	public Task MinimalApi()
-	{
-		var msg = new HttpRequestMessage
-		{
-			Method = HttpMethod.Post,
-			RequestUri = new($"{MinimalClient.BaseAddress}benchmark/ok/123"),
-			Content = _payload
-		};
-
-		return MinimalClient.SendAsync(msg);
-	}
+	
 
 
 	[Benchmark]

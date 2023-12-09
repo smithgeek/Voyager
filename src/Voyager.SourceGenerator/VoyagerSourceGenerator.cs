@@ -152,7 +152,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					{
 						mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
 					}
-					mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} (HttpContext context) =>");
+					var routeParams = new[] { "HttpContext context" }.Concat(request.RouteProperties.Select(p => $"[Microsoft.AspNetCore.Mvc.FromRoute]{p.Property.Type.Name} {p.SourceName}"));
+					mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", routeParams)}) =>");
 					var mapContent = mapEndpoints.AddScope();
 
 					if (endpointClass.CanBeSingleton)
@@ -169,7 +170,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					}
 					if (request.HasBody)
 					{
-						mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.FullName}>(context.Request.Body, jsonOptions);");
+						mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.Name}Body>(context.Request.Body, jsonOptions);");
 					}
 					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}", ";"));
 					foreach (var property in request.Properties)
@@ -178,6 +179,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							var defaultValue = property.DefaultValue ?? "default";
 							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue},");
+						}
+						else if(property.DataSource == ModelBindingSource.Route)
+						{
+							requestInit.AddStatement($"{property.Property.Name} = {property.SourceName},");
 						}
 						else
 						{
@@ -218,7 +223,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private));
 			foreach (var bodyProp in request.BodyProperties)
 			{
-				var prop = requestBodyClass.AddProperty(new(bodyProp.Property.Type.ToString().Trim('?'), bodyProp.SourceName));
+				var prop = requestBodyClass.AddProperty(new(bodyProp.Property.Type.ToString().Trim('?'), bodyProp.Name));
 				foreach (var attr in bodyProp.Property.GetAttributes())
 				{
 					prop.Attributes.Add(attr.ToString());
@@ -412,6 +417,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private List<RequestProperty> properties { get; set; } = [];
 		public IReadOnlyList<RequestProperty> Properties => properties;
 		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
+		public IEnumerable<RequestProperty> RouteProperties => properties.Where(p => p.DataSource == ModelBindingSource.Route);
+
 		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
 		public string BodyClass => $"{Name}Body";
 		public string ValidatorClass => $"{Name}Validator";

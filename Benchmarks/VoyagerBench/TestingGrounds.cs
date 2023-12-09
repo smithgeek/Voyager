@@ -2,38 +2,60 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
+using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using System.Text.Unicode;
 using Voyager;
 using Voyager.ModelBinding;
+using VoyagerApi;
 
 namespace Voyager.Generated2
 {
 	internal class EndpointMapper : Voyager.IVoyagerMapping
 	{
-		private class Converter : JsonConverter<ManualRequestBody>
+
+		private class Converter : JsonConverter<VoyagerApi.Request>
 		{
-			public override ManualRequestBody Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			private readonly IHttpContextAccessor httpContextAccessor;
+
+			public Converter(IHttpContextAccessor httpContextAccessor)
 			{
-				return new ManualRequestBody();
+				this.httpContextAccessor = httpContextAccessor;
 			}
 
-			public override void Write(Utf8JsonWriter writer, ManualRequestBody value, JsonSerializerOptions options)
+			public override Request Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			{
+				return new Request(ref reader, httpContextAccessor.HttpContext, options);
+			}
+
+			public override void Write(Utf8JsonWriter writer, Request value, JsonSerializerOptions options)
 			{
 				throw new NotImplementedException();
 			}
 		}
-
 		public void MapEndpoints(WebApplication app)
 		{
-			var instRequestValidator = new ManualRequestValidator();
 			var modelBinder = new ModelBinder();
+			var originalJsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
+			originalJsonOptions.Converters.Add(new Converter(app.Services.GetRequiredService<IHttpContextAccessor>()));
+			var jsonOptions = new JsonSerializerOptions(originalJsonOptions);
+			var instRequestValidator = new ManualRequestValidator();
 			var endpoint = app.Services.GetRequiredService<VoyagerApi.Endpoint>();
-			var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
-			VoyagerApi.Endpoint.Configure(app.MapPost("/manual/benchmark/ok/{id}", async (HttpContext context) =>
+			VoyagerApi.Endpoint.Configure(app.MapPost("/manual/benchmark/ok/{id}", async ([Microsoft.AspNetCore.Mvc.FromRoute]int id, HttpContext context) =>
 			{
-				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, jsonOptions);
-				request.Id = modelBinder.GetNumber<int>(context, ModelBindingSource.Route, "id");
+				context.Items["req_id"] = id;
+				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, originalJsonOptions);
+				//var body = await JsonSerializer.DeserializeAsync<ManualRequestBody>(context.Request.Body, jsonOptions);
+				//var request = new VoyagerApi.Request
+				//{
+				//	Id = id,// modelBinder.GetNumber<int>(context, ModelBindingSource.Route, "id"),
+				//	Age = body.age,
+				//	FirstName = body.firstName,
+				//	LastName = body.lastName,
+				//	PhoneNumbers = body.phoneNumbers
+				//};
 				var validationResult = await instRequestValidator.ValidateAsync(request);
 				if (!validationResult.IsValid)
 				{
@@ -67,6 +89,48 @@ namespace Voyager.Generated2
 			}
 		}
 
+	}
+}
+
+namespace VoyagerApi
+{
+	public partial class Request
+	{
+		public Request() { }
+		public Request(ref Utf8JsonReader reader, HttpContext httpContext, JsonSerializerOptions options)
+		{
+			Id = (int)httpContext.Items["req_id"];
+			while (reader.TokenType != JsonTokenType.EndObject)
+			{
+				if (reader.TokenType == JsonTokenType.PropertyName)
+				{
+					var propName = reader.GetString();
+					switch (propName)
+					{
+						case "age":
+							reader.Read();
+							Age = reader.GetInt32();
+							break;
+
+						case "firstName":
+							reader.Read();
+							FirstName = reader.GetString();
+							break;
+
+						case "lastName":
+							reader.Read();
+							LastName = reader.GetString();
+							break;
+
+						case "phoneNumbers":
+							reader.Read();
+							PhoneNumbers = JsonSerializer.Deserialize<IEnumerable<string>>(ref reader, options);
+							break;
+					}
+				}
+				reader.Read();
+			}
+		}
 	}
 }
 

@@ -6,6 +6,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Services
 	.AddAuthorization();
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddVoyager();
 builder.Services.AddVoyager2();
 
@@ -24,10 +25,10 @@ namespace VoyagerApi
 		static abstract void AddValidationRules(AbstractValidator<TRequest> validator);
 	}
 
-	public class Request : IRequestValidation<Request>
+	public partial class Request : IRequestValidation<Request>
 	{
 		[FromRoute]
-		public int Id { get; set; }
+		public int Id { get; init; }
 		public string? FirstName { get; set; }
 		public string? LastName { get; set; }
 		public int Age { get; set; }
