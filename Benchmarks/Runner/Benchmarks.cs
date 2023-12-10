@@ -18,7 +18,7 @@ public class Benchmarks
 	static HttpClient FeCodeGenClient { get; } = new WebApplicationFactory<FEBench.Program>().CreateClient();
 	static HttpClient FeScopedValidatorClient { get; } = new WebApplicationFactory<FEBench.Program>().CreateClient();
 	static HttpClient FeThrottleClient { get; } = new WebApplicationFactory<FEBench.Program>().CreateClient();
-	static HttpClient MinimalClient { get; } = new WebApplicationFactory<MinimalApi.Program>().CreateClient();
+	public static HttpClient MinimalClient { get; } = new WebApplicationFactory<MinimalApi.Program>().CreateClient();
 	static HttpClient MvcClient { get; } = new WebApplicationFactory<MvcControllers.Program>().CreateClient();
 	static HttpClient VoyagerClient { get; } = new WebApplicationFactory<VoyagerApi.Program>().CreateClient();
 
@@ -107,7 +107,7 @@ public class Benchmarks
 		return FastEndpointClient.SendAsync(msg);
 	}
 
-	
+
 
 
 	[Benchmark]

@@ -13,7 +13,7 @@ builder.Services.AddVoyager2();
 var app = builder.Build();
 app.UseAuthorization();
 app.MapVoyager();
-
+app.Urls.Add("http://0.0.0.0:5000");
 app.Run();
 
 namespace VoyagerApi
@@ -57,10 +57,6 @@ namespace VoyagerApi
 	[VoyagerEndpoint("/benchmark/ok/{id}")]
 	public class Endpoint : IConfigurableEndpoint
 	{
-		public Endpoint(ILogger<Program> logger)
-		{
-		}
-
 		public static void Configure(RouteHandlerBuilder routeHandlerBuilder)
 		{
 			routeHandlerBuilder
@@ -68,7 +64,7 @@ namespace VoyagerApi
 				.AllowAnonymous();
 		}
 
-		public Response Post(Request req)
+		public Response Post(Request req, ILogger<Program> logger)
 		{
 			return new Response()
 			{

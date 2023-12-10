@@ -8,9 +8,10 @@ builder.Services.AddScoped<ScopedValidator>();
 
 var app = builder.Build();
 app.UseFastEndpoints();
+app.Urls.Add("http://0.0.0.0:5000");
 app.Run();
 
 namespace FEBench
 {
-    public partial class Program { }
+	public partial class Program { }
 }

@@ -42,7 +42,7 @@ public static class Extension
 		}
 		else
 		{
-			return $"context.RequestServices.GetRequiredService<{typeName}>();";
+			return $"context.RequestServices.GetRequiredService<{typeName}>()";
 		}
 	}
 
@@ -574,9 +574,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public IEnumerable<string> GetInjectedParameters()
 		{
 			return method.ParameterList.Parameters
-				.Select(p => 
+				.Select(p =>
 				{
-					if(requestNames.Any(rn => rn.Equals(p.Identifier.ValueText, StringComparison.Ordinal)))
+					if (requestNames.Any(rn => rn.Equals(p.Identifier.ValueText, StringComparison.Ordinal)))
 					{
 						return "request";
 					}

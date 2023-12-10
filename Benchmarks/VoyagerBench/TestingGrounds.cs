@@ -3,10 +3,8 @@ using FluentValidation;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Voyager;
 using Voyager.ModelBinding;
-using VoyagerApi;
 
 namespace Voyager.Generated2
 {
@@ -35,7 +33,7 @@ namespace Voyager.Generated2
 				{
 					return Results.ValidationProblem(validationResult.ToDictionary());
 				}
-				return TypedResults.Ok(endpoint.Post(request));
+				return TypedResults.Ok(endpoint.Post(request, null));
 			}).WithMetadata((new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() =>
 			{
 				var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());
