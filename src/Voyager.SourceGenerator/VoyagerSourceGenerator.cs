@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 
@@ -41,8 +42,18 @@ public static class Extension
 		}
 		else
 		{
-			return "context.RequestServices.GetRequiredService<{typeName}>();";
+			return $"context.RequestServices.GetRequiredService<{typeName}>();";
 		}
+	}
+
+	public static string? GetValidationInstanceOf(this ITypeSymbol? type)
+	{
+		if (type is null)
+		{
+			return null;
+		}
+		var typeName = type.ToDisplayString().Trim('?');
+		return $"app.Services.GetRequiredService<{typeName}>();";
 	}
 }
 
@@ -180,7 +191,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 							var defaultValue = property.DefaultValue ?? "default";
 							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue},");
 						}
-						else if(property.DataSource == ModelBindingSource.Route)
+						else if (property.DataSource == ModelBindingSource.Route)
 						{
 							requestInit.AddStatement($"{property.Property.Name} = {property.SourceName},");
 						}
@@ -231,17 +242,17 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 			if (request.NeedsValidating)
 			{
-				CreateValidatorClass(code, request);
-				endpointsInitRegion.AddStatement($"var inst{request.ValidatorClass} = new {request.ValidatorClass}();");
+				CreateValidatorClass(code, request, endpointsInitRegion);
 			}
 		}
 	}
 
-	private static void CreateValidatorClass(ClassBuilder code, RequestObject request)
+	private static void CreateValidatorClass(ClassBuilder code, RequestObject request, CodeBuilder endpointsInitRegion)
 	{
 		var validatorClass = code.AddClass(new($"{request.ValidatorClass}", Access.Public));
 		validatorClass.AddBase($"AbstractValidator<{request.FullName}>");
 		var ctor = validatorClass.AddMethod(new($"{request.ValidatorClass}", "", Access.Public));
+		var servicesArg = string.Empty;
 		foreach (var prop in request.Properties)
 		{
 			if (prop.IsRequired)
@@ -249,10 +260,29 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				ctor.AddStatement($"RuleFor(r => r.{prop.Name}).NotNull();");
 			}
 		}
-		if (request.HasValidationMethod)
+		if (request.ValidationMethod != null)
 		{
-			ctor.AddStatement($"{request.FullName}.AddValidationRules(this);");
+			if (request.ValidationMethod.Parameters.Length > 1)
+			{
+				ctor.AddParameter("IServiceProvider services");
+				servicesArg = "app.Services";
+			}
+			List<string> parameters = [];
+			foreach (var parameter in request.ValidationMethod.Parameters)
+			{
+				if (parameter.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{request.FullName}>")
+				{
+					parameters.Add("this");
+				}
+				else
+				{
+					ctor.AddStatement($"var {parameter.Name} = services.GetService<{parameter.Type.ToDisplayString()}>();");
+					parameters.Add(parameter.Name);
+				}
+			}
+			ctor.AddStatement($"{request.FullName}.{request.ValidationMethod.Name}({string.Join(", ", parameters)});");
 		}
+		endpointsInitRegion.AddStatement($"var inst{request.ValidatorClass} = new {request.ValidatorClass}({servicesArg});");
 	}
 
 	private void AddOpenApiMetadata(MethodBuilder mapEndpoints, Endpoint endpoint, RequestObject request)
@@ -412,8 +442,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	internal class RequestObject
 	{
-		public bool HasValidationMethod { get; set; } = false;
-		public bool NeedsValidating => HasValidationMethod || properties.Any(p => p.IsRequired);
+		public IMethodSymbol? ValidationMethod { get; set; }
+		public bool NeedsValidating => ValidationMethod != null || properties.Any(p => p.IsRequired);
 		private List<RequestProperty> properties { get; set; } = [];
 		public IReadOnlyList<RequestProperty> Properties => properties;
 		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
@@ -460,15 +490,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				this.properties.Add(requestProperty);
 			}
 
-			var validationMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
-				&& m.Name.Equals("AddValidationRules", StringComparison.OrdinalIgnoreCase)).OfType<IMethodSymbol>();
+			var staticMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
+				&& m.IsStatic).OfType<IMethodSymbol>();
 
-			foreach (var validationMethod in validationMethods ?? Enumerable.Empty<IMethodSymbol>())
+			foreach (var staticMethod in staticMethods ?? Enumerable.Empty<IMethodSymbol>())
 			{
-				var firstParam = validationMethod.Parameters.FirstOrDefault();
-				if (firstParam?.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestTypeInfo.Type?.ToDisplayString()}>")
+				var parameterTypes = staticMethod.Parameters.ToList();
+				if (parameterTypes.Any(p => p.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestTypeInfo.Type?.ToDisplayString()}>"))
 				{
-					HasValidationMethod = true;
+					ValidationMethod = staticMethod;
+					break;
 				}
 			}
 			Name = requestType;

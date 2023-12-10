@@ -2,11 +2,8 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
-using System.Buffers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.Json.Serialization.Metadata;
-using System.Text.Unicode;
 using Voyager;
 using Voyager.ModelBinding;
 using VoyagerApi;
@@ -43,7 +40,7 @@ namespace Voyager.Generated2
 			var jsonOptions = new JsonSerializerOptions(originalJsonOptions);
 			var instRequestValidator = new ManualRequestValidator();
 			var endpoint = app.Services.GetRequiredService<VoyagerApi.Endpoint>();
-			VoyagerApi.Endpoint.Configure(app.MapPost("/manual/benchmark/ok/{id}", async ([Microsoft.AspNetCore.Mvc.FromRoute]int id, HttpContext context) =>
+			VoyagerApi.Endpoint.Configure(app.MapPost("/manual/benchmark/ok/{id}", async ([Microsoft.AspNetCore.Mvc.FromRoute] int id, HttpContext context) =>
 			{
 				context.Items["req_id"] = id;
 				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, originalJsonOptions);

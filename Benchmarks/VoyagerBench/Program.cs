@@ -29,7 +29,7 @@ namespace VoyagerApi
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
 
-		public static void AddValidationRules(AbstractValidator<Request> validator, IHttpContextAccessor httpContextAccessor)
+		public static void AddValidationRules(AbstractValidator<Request> validator)
 		{
 			validator.RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
 			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
