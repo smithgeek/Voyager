@@ -152,37 +152,40 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		{
 			foreach (var endpoint in endpointClass.EndpointMethods)
 			{
-				if (endpoint.Request != null)
+				var request = endpoint.Request;
+
+				if (request != null)
 				{
-					var request = endpoint.Request;
-
 					GenerateRequestBodyClasses(endpointMapper, endpointsInitRegion, request);
+				}
 
-					servicesMethod.AddStatement($"services.AddTransient<{endpointClass.FullName}>();");
-					if (endpointClass.Configure != null)
-					{
-						mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
-					}
-					var routeParams = new[] { "HttpContext context" }.Concat(request.RouteProperties.Select(p => $"[Microsoft.AspNetCore.Mvc.FromRoute]{p.Property.Type.Name} {p.SourceName}"));
-					mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", routeParams)}) =>");
-					var mapContent = mapEndpoints.AddScope();
+				servicesMethod.AddStatement($"services.AddTransient<{endpointClass.FullName}>();");
+				if (endpointClass.Configure != null)
+				{
+					mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
+				}
+				var minimalApiParams = new[] { "HttpContext context" }.Concat(request?.PropertyValuesFromMinimalApi ?? Enumerable.Empty<string>());
+				mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", minimalApiParams)}) =>");
+				var mapContent = mapEndpoints.AddScope();
 
-					if (endpointClass.CanBeSingleton)
-					{
-						endpointsInitRegion.AddStatement($"var {endpointClass.InstanceName} = app.Services.GetRequiredService<{endpointClass.FullName}>();");
-					}
-					else
-					{
-						mapContent.AddStatement($"var {endpointClass.InstanceName} = context.RequestServices.GetRequiredService<{endpointClass.FullName}>();");
-					}
-					foreach (var property in endpointClass.GetPropertiesNeedingInjected())
-					{
-						mapContent.AddStatement($"{endpointClass.InstanceName}.{property.Name} = {property.Type.GetInstanceOf()};");
-					}
-					if (request.HasBody)
-					{
-						mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.Name}Body>(context.Request.Body, jsonOptions);");
-					}
+				if (endpointClass.CanBeSingleton)
+				{
+					endpointsInitRegion.AddStatement($"var {endpointClass.InstanceName} = app.Services.GetRequiredService<{endpointClass.FullName}>();");
+				}
+				else
+				{
+					mapContent.AddStatement($"var {endpointClass.InstanceName} = context.RequestServices.GetRequiredService<{endpointClass.FullName}>();");
+				}
+				foreach (var property in endpointClass.GetPropertiesNeedingInjected())
+				{
+					mapContent.AddStatement($"{endpointClass.InstanceName}.{property.Name} = {property.Type.GetInstanceOf()};");
+				}
+				if (request?.HasBody ?? false)
+				{
+					mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.Name}Body>(context.Request.Body, jsonOptions);");
+				}
+				if (request != null)
+				{
 					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}", ";"));
 					foreach (var property in request.Properties)
 					{
@@ -191,7 +194,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 							var defaultValue = property.DefaultValue ?? "default";
 							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue},");
 						}
-						else if (property.DataSource == ModelBindingSource.Route)
+						else if (property.DataSource == ModelBindingSource.Route
+							|| property.DataSource == ModelBindingSource.Query
+							|| property.DataSource == ModelBindingSource.Header
+							|| property.DataSource == ModelBindingSource.Form)
 						{
 							requestInit.AddStatement($"{property.Property.Name} = {property.SourceName},");
 						}
@@ -200,25 +206,25 @@ public class VoyagerSourceGenerator : ISourceGenerator
 							AddPropertyAssignment(property, requestInit);
 						}
 					}
-					var awaitCode = endpoint.IsTask ? "await " : "";
-
-					var parameters = new[] { "request" }.Concat(endpoint.GetInjectedParameters());
-					if (request.NeedsValidating)
-					{
-						mapContent.AddStatement($"var validationResult = await inst{request.ValidatorClass}.ValidateAsync(request);");
-						if (!parameters.Contains("validationResult"))
-						{
-							var @if = mapContent.AddIf("!validationResult.IsValid");
-							@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
-						}
-					}
-					var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
-					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
-					mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
-					AddOpenApiMetadata(mapEndpoints, endpoint, request);
-
-					mapEndpoints.AddStatement($")()){(endpointClass.Configure == null ? "" : ")")};");
 				}
+				var awaitCode = endpoint.IsTask ? "await " : "";
+
+				var parameters = endpoint.GetInjectedParameters();
+				if (request?.NeedsValidating ?? false)
+				{
+					mapContent.AddStatement($"var validationResult = await inst{request.ValidatorClass}.ValidateAsync(request);");
+					if (!parameters.Contains("validationResult"))
+					{
+						var @if = mapContent.AddIf("!validationResult.IsValid");
+						@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
+					}
+				}
+				var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
+				mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+				mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
+				AddOpenApiMetadata(mapEndpoints, endpoint, request);
+
+				mapEndpoints.AddStatement($")()){(endpointClass.Configure == null ? "" : ")")};");
 			}
 		}
 
@@ -285,19 +291,23 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		endpointsInitRegion.AddStatement($"var inst{request.ValidatorClass} = new {request.ValidatorClass}({servicesArg});");
 	}
 
-	private void AddOpenApiMetadata(MethodBuilder mapEndpoints, Endpoint endpoint, RequestObject request)
+	private void AddOpenApiMetadata(MethodBuilder mapEndpoints, Endpoint endpoint, RequestObject? request)
 	{
 		var metadata = mapEndpoints.AddScope();
 		metadata.AddStatement("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());");
-		foreach (var property in request.Properties.Where(p =>
-			parameterSources.Contains(p.DataSource)))
+		if (request != null)
 		{
-			var location = property.DataSource == ModelBindingSource.Route ? "Path" : Enum.GetName(typeof(ModelBindingSource), property.DataSource);
-			metadata.AddStatement($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}));");
-		}
-		if (request.HasBody)
-		{
-			metadata.AddStatement($"builder.AddBody(typeof({request.Name}Body));");
+			foreach (var property in request.Properties.Where(p =>
+				parameterSources.Contains(p.DataSource)))
+			{
+				var location = property.DataSource == ModelBindingSource.Route ? "Path" : Enum.GetName(typeof(ModelBindingSource), property.DataSource);
+				var required = property.Property.Type.ToString().EndsWith("?");
+				metadata.AddStatement($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}), {(required ? "true" : "false")});");
+			}
+			if (request.HasBody)
+			{
+				metadata.AddStatement($"builder.AddBody(typeof({request.Name}Body));");
+			}
 		}
 
 		metadata.AddStatement("builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));");
@@ -447,7 +457,30 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private List<RequestProperty> properties { get; set; } = [];
 		public IReadOnlyList<RequestProperty> Properties => properties;
 		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
-		public IEnumerable<RequestProperty> RouteProperties => properties.Where(p => p.DataSource == ModelBindingSource.Route);
+		public IEnumerable<string> PropertyValuesFromMinimalApi
+		{
+			get
+			{
+				return Properties.Select(GetMinimalApiParam).Where(p => p != null)!;
+			}
+		}
+
+		private string? GetMinimalApiParam(RequestProperty prop)
+		{
+			var attr = prop.DataSource switch
+			{
+				ModelBindingSource.Route => "[Microsoft.AspNetCore.Mvc.FromRoute]",
+				ModelBindingSource.Query => "[Microsoft.AspNetCore.Mvc.FromQuery]",
+				ModelBindingSource.Form => "[Microsoft.AspNetCore.Mvc.FromForm]",
+				ModelBindingSource.Header => "[Microsoft.AspNetCore.Mvc.FromHeader]",
+				_ => null
+			};
+			if (attr == null)
+			{
+				return null;
+			}
+			return $"{attr}{prop.Property.Type.ToDisplayString()} {prop.SourceName}";
+		}
 
 		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
 		public string BodyClass => $"{Name}Body";
@@ -538,11 +571,18 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private readonly SemanticModel semanticModel;
 		public RequestObject? Request { get; }
 		public bool NeedsAsync => IsTask || (Request != null && Request.NeedsValidating);
-
+		private string[] requestNames = ["request", "req"];
 		public IEnumerable<string> GetInjectedParameters()
 		{
-			return method.ParameterList.Parameters.Skip(1)
-				.Select(p => semanticModel.GetTypeInfo(p.Type!).Type.GetInstanceOf()).Where(p => p != null)!;
+			return method.ParameterList.Parameters
+				.Select(p => 
+				{
+					if(requestNames.Any(rn => rn.Equals(p.Identifier.ValueText, StringComparison.Ordinal)))
+					{
+						return "request";
+					}
+					return semanticModel.GetTypeInfo(p.Type!).Type.GetInstanceOf();
+				}).Where(p => p != null)!;
 		}
 
 		public Endpoint(MethodDeclarationSyntax method, SemanticModel semanticModel, string httpMethod)
@@ -564,7 +604,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			this.semanticModel = semanticModel;
 			HttpMethod = httpMethod;
 
-			var requestTypeSyntax = method.ParameterList.Parameters.First().Type;
+			var requestTypeSyntax = method.ParameterList.Parameters.FirstOrDefault(p => requestNames.Any(rn => rn.Equals(p.Identifier.Text, StringComparison.OrdinalIgnoreCase)))?.Type;
 			var requestType = string.Empty;
 			if (requestTypeSyntax is IdentifierNameSyntax name)
 			{

@@ -8,7 +8,7 @@ public interface IOperationBuilder
 {
 	void AddBody(Type bodyType);
 
-	void AddParameter(string name, ParameterLocation location, Type type);
+	void AddParameter(string name, ParameterLocation location, Type type, bool required);
 
 	void AddResponse(int statusCode, Type? type);
 
@@ -44,13 +44,14 @@ public class OperationBuilder : IOperationBuilder
 		};
 	}
 
-	public void AddParameter(string name, ParameterLocation location, Type type)
+	public void AddParameter(string name, ParameterLocation location, Type type, bool required)
 	{
 		operation.Parameters.Add(new OpenApiParameter
 		{
 			Name = name,
 			In = location,
 			Schema = schemaGenerator.Generate(type),
+			Required = required
 		});
 	}
 

@@ -12,38 +12,15 @@ namespace Voyager.Generated2
 {
 	internal class EndpointMapper : Voyager.IVoyagerMapping
 	{
-
-		private class Converter : JsonConverter<VoyagerApi.Request>
-		{
-			private readonly IHttpContextAccessor httpContextAccessor;
-
-			public Converter(IHttpContextAccessor httpContextAccessor)
-			{
-				this.httpContextAccessor = httpContextAccessor;
-			}
-
-			public override Request Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
-			{
-				return new Request(ref reader, httpContextAccessor.HttpContext, options);
-			}
-
-			public override void Write(Utf8JsonWriter writer, Request value, JsonSerializerOptions options)
-			{
-				throw new NotImplementedException();
-			}
-		}
 		public void MapEndpoints(WebApplication app)
 		{
 			var modelBinder = new ModelBinder();
-			var originalJsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
-			originalJsonOptions.Converters.Add(new Converter(app.Services.GetRequiredService<IHttpContextAccessor>()));
-			var jsonOptions = new JsonSerializerOptions(originalJsonOptions);
+			var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
 			var instRequestValidator = new ManualRequestValidator();
 			var endpoint = app.Services.GetRequiredService<VoyagerApi.Endpoint>();
 			VoyagerApi.Endpoint.Configure(app.MapPost("/manual/benchmark/ok/{id}", async ([Microsoft.AspNetCore.Mvc.FromRoute] int id, HttpContext context) =>
 			{
-				context.Items["req_id"] = id;
-				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, originalJsonOptions);
+				var request = await JsonSerializer.DeserializeAsync<VoyagerApi.Request>(context.Request.Body, jsonOptions);
 				//var body = await JsonSerializer.DeserializeAsync<ManualRequestBody>(context.Request.Body, jsonOptions);
 				//var request = new VoyagerApi.Request
 				//{
@@ -62,7 +39,7 @@ namespace Voyager.Generated2
 			}).WithMetadata((new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() =>
 			{
 				var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());
-				builder.AddParameter("id", Microsoft.OpenApi.Models.ParameterLocation.Path, typeof(int));
+				builder.AddParameter("id", Microsoft.OpenApi.Models.ParameterLocation.Path, typeof(int), true);
 				builder.AddBody(typeof(ManualRequestBody));
 				builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));
 				builder.AddResponse(200, typeof(VoyagerApi.Response));
@@ -82,7 +59,7 @@ namespace Voyager.Generated2
 		{
 			public ManualRequestValidator()
 			{
-				VoyagerApi.Request.AddValidationRules(this);
+				VoyagerApi.Request.Validate(this);
 			}
 		}
 

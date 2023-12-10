@@ -168,11 +168,7 @@ public class ModelBinder : IModelBinder
 	{
 		return source switch
 		{
-			ModelBindingSource.Route => context.Request.RouteValues.TryGetValue(key, out var value) && value is string routeString ? routeString : null,
 			ModelBindingSource.Cookie => context.Request.Cookies.TryGetValue(key, out var value) ? value : null,
-			ModelBindingSource.Form => context.Request.Form.TryGetValue(key, out var values) ? values : StringValues.Empty,
-			ModelBindingSource.Header => context.Request.Headers.TryGetValue(key, out var values) ? values : StringValues.Empty,
-			ModelBindingSource.Query => context.Request.Query.TryGetValue(key, out var values) ? values : StringValues.Empty,
 			_ => StringValues.Empty
 		};
 	}
