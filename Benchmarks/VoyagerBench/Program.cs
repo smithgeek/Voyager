@@ -20,12 +20,7 @@ namespace VoyagerApi
 {
 	public partial class Program { }
 
-	interface IRequestValidation<TRequest>
-	{
-		static abstract void AddValidationRules(AbstractValidator<TRequest> validator);
-	}
-
-	public partial class Request : IRequestValidation<Request>
+	public partial class Request
 	{
 		[FromRoute]
 		public int Id { get; init; }
@@ -34,7 +29,7 @@ namespace VoyagerApi
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
 
-		public static void AddValidationRules(AbstractValidator<Request> validator)
+		public static void AddValidationRules(AbstractValidator<Request> validator, IHttpContextAccessor httpContextAccessor)
 		{
 			validator.RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
 			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
