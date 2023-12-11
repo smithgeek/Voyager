@@ -59,7 +59,7 @@ namespace Voyager.Generated2
 		{
 			public ManualRequestValidator()
 			{
-				VoyagerApi.Request.Validate(this);
+				VoyagerApi.Request.Validate(this, null);
 			}
 		}
 

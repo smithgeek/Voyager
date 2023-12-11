@@ -467,14 +467,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 		private string? GetMinimalApiParam(RequestProperty prop)
 		{
-			var attr = prop.DataSource switch
-			{
-				ModelBindingSource.Route => "[Microsoft.AspNetCore.Mvc.FromRoute]",
-				ModelBindingSource.Query => "[Microsoft.AspNetCore.Mvc.FromQuery]",
-				ModelBindingSource.Form => "[Microsoft.AspNetCore.Mvc.FromForm]",
-				ModelBindingSource.Header => "[Microsoft.AspNetCore.Mvc.FromHeader]",
-				_ => null
-			};
+			var attr = prop.DataSource != ModelBindingSource.Cookie ? prop.SourceAttribute : null;
 			if (attr == null)
 			{
 				return null;
@@ -505,11 +498,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						"FromCookieAttribute" => ModelBindingSource.Cookie,
 						_ => ModelBindingSource.Body
 					};
-					requestProperty = new RequestProperty(property)
+					if (source != ModelBindingSource.Body)
 					{
-						Attribute = attribute,
-						DataSource = source
-					};
+						requestProperty = new RequestProperty(property)
+						{
+							Attribute = attribute,
+							DataSource = source,
+							SourceAttribute = $"[{attribute}]"
+						};
+						break;
+					}
 				}
 				requestProperty ??= new RequestProperty(property)
 				{
@@ -546,6 +544,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string? DefaultValue { get; set; }
 		public AttributeData? Attribute { get; set; }
 		public ModelBindingSource DataSource { get; set; } = ModelBindingSource.Body;
+		public string SourceAttribute { get; set; } = string.Empty;
 		public bool IsRequired => Property.IsRequired;
 		public IPropertySymbol Property { get; set; } = property;
 

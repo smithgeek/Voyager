@@ -22,15 +22,16 @@ namespace VoyagerApi
 
 	public partial class Request
 	{
-		[FromRoute]
+		[FromRoute(Name = "id")]
 		public int Id { get; init; }
 		public string? FirstName { get; set; }
 		public string? LastName { get; set; }
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
 
-		public static void Validate(AbstractValidator<Request> validator)
+		public static void Validate(AbstractValidator<Request> validator, IHttpContextAccessor context)
 		{
+			
 			validator.RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
 			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
 			validator.RuleFor(x => x.Age).GreaterThan(10).WithMessage("too young");
