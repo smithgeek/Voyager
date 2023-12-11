@@ -1,0 +1,22 @@
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v/*' # Push events to matching v*, i.e. v1.0, v20.15.10
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v2
+    - name: Set VERSION variable from tag
+      run: echo "VERSION=${GITHUB_REF/refs\/tags\/v\//}" >> $GITHUB_ENV
+    - name: Build
+      run: |
+        dotnet build --configuration Release /p:Version=${VERSION} src/Voyager.SourceGenerator/Voyager.SourceGenerator.csproj
+        dotnet build --configuration Release /p:Version=${VERSION} src/Voyager/Voyager.csproj
+    - name: Pack
+      run: dotnet pack --configuration Release /p:Version=${VERSION} --no-build --output . src/Voyager/Voyager.csproj
+    - name: Push
+      run: nuget push **/*.nupkg -Source 'https://api.nuget.org/v3/index.json' -ApiKey ${{secrets.NUGET_API_KEY}}
