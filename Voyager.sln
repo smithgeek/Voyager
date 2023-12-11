@@ -14,8 +14,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{EA72A2E3
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{9BA957EA-1FB6-4601-8CD2-28356DD9C858}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Voyager.UnitTests", "Tests\Voyager.UnitTests\Voyager.UnitTests.csproj", "{3538ABFD-952E-4AA3-87B0-18B073D2D175}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{CB386B3A-92E0-453C-9AFA-8B0F56DCA6DE}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
@@ -35,7 +33,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "FEBench", "Benchmarks\FastE
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MvcControllers", "Benchmarks\MvcControllers\MvcControllers.csproj", "{C21CFB1B-8F7D-40FA-90B5-EAC8EC7B44A5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VoyagerBench", "Benchmarks\VoyagerBench\VoyagerBench.csproj", "{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoyagerBench", "Benchmarks\VoyagerBench\VoyagerBench.csproj", "{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -47,10 +45,6 @@ Global
 		{002469C6-80ED-479E-9DF2-2BB1F360F195}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{002469C6-80ED-479E-9DF2-2BB1F360F195}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{002469C6-80ED-479E-9DF2-2BB1F360F195}.Release|Any CPU.Build.0 = Release|Any CPU
-		{3538ABFD-952E-4AA3-87B0-18B073D2D175}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{3538ABFD-952E-4AA3-87B0-18B073D2D175}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{3538ABFD-952E-4AA3-87B0-18B073D2D175}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{3538ABFD-952E-4AA3-87B0-18B073D2D175}.Release|Any CPU.Build.0 = Release|Any CPU
 		{FDC52B00-A056-4AE5-83A0-738C245C0A90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{FDC52B00-A056-4AE5-83A0-738C245C0A90}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FDC52B00-A056-4AE5-83A0-738C245C0A90}.Release|Any CPU.ActiveCfg = Release|Any CPU
@@ -85,7 +79,6 @@ Global
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{002469C6-80ED-479E-9DF2-2BB1F360F195} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
-		{3538ABFD-952E-4AA3-87B0-18B073D2D175} = {EA72A2E3-8F1A-4CB2-8A8A-DDFD10123DDD}
 		{FDC52B00-A056-4AE5-83A0-738C245C0A90} = {9BA957EA-1FB6-4601-8CD2-28356DD9C858}
 		{F417EC75-6D1D-4C7A-A3F2-FC5661F5D53D} = {94C40C68-D0F4-4831-8014-72C6D1424ACA}
 		{52E55BBC-177F-466A-82B1-058311073CA9} = {AC9D763A-C67A-40DB-953E-35E481305753}

@@ -5,7 +5,11 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddVoyager();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(config => config.AddVoyager());
+builder.Services.AddSwaggerGen(config =>
+{
+	config.AddVoyager();
+	config.SupportNonNullableReferenceTypes();
+});
 
 var app = builder.Build();
 
@@ -13,7 +17,6 @@ var app = builder.Build();
 
 app.MapVoyager();
 app.MapSwagger();
-app.UseSwagger();
 app.UseSwaggerUI();
 
 app.Run();

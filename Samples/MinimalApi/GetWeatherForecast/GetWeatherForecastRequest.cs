@@ -1,6 +1,5 @@
 ﻿using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
-using MinimalApi.GetWeatherForecast;
 using System.Text.Json.Serialization;
 
 namespace Shared.GetWeatherForecast

@@ -1,5 +1,4 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using System.Collections.Generic;
 
 namespace Shared.TestEndpoint
 {
@@ -10,7 +9,7 @@ namespace Shared.TestEndpoint
 		public required int Item2 { get; init; }
 
 		[FromQuery(Name = "abc")]
-		public required IEnumerable<int> List { get; init; }
+		public required string[] List { get; init; }
 
 		[FromCookie]
 		public string? MyCookie { get; set; }

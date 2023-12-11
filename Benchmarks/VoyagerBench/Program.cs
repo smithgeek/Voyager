@@ -29,9 +29,8 @@ namespace VoyagerApi
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
 
-		public static void Validate(AbstractValidator<Request> validator, IHttpContextAccessor context)
+		public static void Validate(AbstractValidator<Request> validator)
 		{
-			
 			validator.RuleFor(x => x.FirstName).NotEmpty().WithMessage("name needed");
 			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
 			validator.RuleFor(x => x.Age).GreaterThan(10).WithMessage("too young");

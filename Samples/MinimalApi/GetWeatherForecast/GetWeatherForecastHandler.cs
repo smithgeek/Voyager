@@ -1,9 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Linq;
-using Voyager;
+﻿using Voyager;
 
 namespace Shared.GetWeatherForecast
 {
@@ -15,10 +10,19 @@ namespace Shared.GetWeatherForecast
 	[VoyagerEndpoint("v2/WeatherForecast/{city}")]
 	public class GetWeatherForecastHandler : IEndpointConfigure
 	{
-		private static readonly string[] Summaries = new[]
-		{
-			"Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-		};
+		private static readonly string[] Summaries =
+		[
+			"Freezing",
+			"Bracing",
+			"Chilly",
+			"Cool",
+			"Mild",
+			"Warm",
+			"Balmy",
+			"Hot",
+			"Sweltering",
+			"Scorching"
+		];
 
 		public static void Configure(RouteHandlerBuilder builder)
 		{
@@ -27,10 +31,6 @@ namespace Shared.GetWeatherForecast
 
 		public IResult Get(GetWeatherForecastRequest request)
 		{
-			IResult SomeFunc()
-			{
-				return TypedResults.Ok("yes");
-			}
 			if (request.Days < 1)
 			{
 				throw new ArgumentException($"Days must be greater than 0");

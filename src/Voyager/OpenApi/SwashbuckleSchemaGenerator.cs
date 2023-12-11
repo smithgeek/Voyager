@@ -10,16 +10,10 @@ using System.Text.Json;
 
 namespace Voyager.OpenApi;
 
-internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
+internal class SwashbuckleSchemaGenerator(IServiceProvider serviceProvider) : IOpenApiSchemaGenerator
 {
-	private readonly ISchemaGenerator generator;
-	private readonly SchemaRepository schemaRepository;
-
-	public SwashbuckleSchemaGenerator(IServiceProvider serviceProvider)
-	{
-		generator = GetSchemaGenerator(serviceProvider);
-		schemaRepository = serviceProvider.GetService<SchemaRepository>() ?? new();
-	}
+	private readonly ISchemaGenerator generator = GetSchemaGenerator(serviceProvider);
+	private readonly SchemaRepository schemaRepository = serviceProvider.GetService<SchemaRepository>() ?? new();
 
 	public OpenApiSchema? Generate(IEnumerable<Type> types)
 	{

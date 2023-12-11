@@ -56,15 +56,10 @@ public class SourceBuilder()
 	}
 }
 
-public class NamespaceBuilder
+public class NamespaceBuilder(string name)
 {
 	public List<ClassBuilder> Classes { get; } = [];
-	public string Name { get; }
-
-	public NamespaceBuilder(string name)
-	{
-		Name = name;
-	}
+	public string Name { get; } = name;
 
 	public ClassBuilder AddClass(ClassBuilder classBuilder)
 	{
@@ -115,6 +110,7 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 	public List<PropertyBuilder> Properties { get; } = [];
 	public bool IsStatic { get; } = isStatic;
 	public List<ClassBuilder> Classes { get; } = [];
+	private string? nullableDirective = null;
 
 	public ClassBuilder AddBase(string @interface)
 	{
@@ -128,8 +124,18 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 		return classBuilder;
 	}
 
+	public ClassBuilder AddNullableDirective(string directive)
+	{
+		nullableDirective = directive;
+		return this;
+	}
+
 	public void Build(IndentedTextWriter code)
 	{
+		if (nullableDirective != null)
+		{
+			code.WriteLine($"#nullable {nullableDirective}");
+		}
 		code.WriteLine($"{Access.ToCode()} {(IsStatic ? "static " : "")}class {Name}{GetInterfaces()}");
 		code.WriteLine("{");
 		code.Indent++;
@@ -147,6 +153,10 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 		}
 		code.Indent--;
 		code.WriteLine("}");
+		if (nullableDirective != null)
+		{
+			code.WriteLine($"#nullable {(nullableDirective == "enable" ? "disable" : "enable")}");
+		}
 	}
 
 	public MethodBuilder AddMethod(MethodBuilder builder)
@@ -225,7 +235,7 @@ public interface ICodeBuilder
 public abstract class CodeBuilder : ICodeBuilder
 {
 	public List<ICodeBuilder> Children { get; } = [];
-	private StringBuilder partialStatement = new();
+	private readonly StringBuilder partialStatement = new();
 
 	public abstract void Build(IndentedTextWriter code);
 

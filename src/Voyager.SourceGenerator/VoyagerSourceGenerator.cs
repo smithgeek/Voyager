@@ -72,7 +72,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	public void Execute(GeneratorExecutionContext context)
 	{
 		var code = EndpointMapping(context);
-		context.AddSource($"VoyagerEndpointMapping.g.cs", code);
+		context.AddSource($"{context.Compilation.AssemblyName}.Voyager.EndpointMapper.g.cs", code);
 	}
 
 	public void Initialize(GeneratorInitializationContext context)
@@ -123,7 +123,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	private string EndpointMapping(GeneratorExecutionContext context)
 	{
 		var source = new SourceBuilder();
-		source.AddDirective("#nullable disable")
+		source.AddDirective("#nullable enable")
 			.AddUsing("FluentValidation")
 			.AddUsing("Microsoft.AspNetCore.Builder")
 			.AddUsing("Microsoft.AspNetCore.Http.Json")
@@ -133,7 +133,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddUsing("Voyager")
 			.AddUsing("Voyager.ModelBinding");
 
-		var voyagerGenNs = source.AddNamespace("Voyager.Generated");
+		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{context.Compilation.AssemblyName}Gen");
 		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
 			.AddClass(new("VoyagerEndpoints", Access.Internal, isStatic: true))
 			.AddMethod(new("AddVoyager", access: Access.Internal, isStatic: true))
@@ -192,7 +192,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						if (property.DataSource == ModelBindingSource.Body)
 						{
 							var defaultValue = property.DefaultValue ?? "default";
-							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue},");
+							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue}{(property.Property.NullableAnnotation == NullableAnnotation.NotAnnotated ? "!" : "")},");
 						}
 						else if (property.DataSource == ModelBindingSource.Route
 							|| property.DataSource == ModelBindingSource.Query
@@ -228,7 +228,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 		}
 
-		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.EndpointMapper>();");
+		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.{context.Compilation.AssemblyName}Gen.EndpointMapper>();");
 
 		return source.Build();
 	}
@@ -240,7 +240,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private));
 			foreach (var bodyProp in request.BodyProperties)
 			{
-				var prop = requestBodyClass.AddProperty(new(bodyProp.Property.Type.ToString().Trim('?'), bodyProp.Name));
+				var prop = requestBodyClass.AddProperty(new($"{bodyProp.Property.Type}", bodyProp.Name));
 				foreach (var attr in bodyProp.Property.GetAttributes())
 				{
 					prop.Attributes.Add(attr.ToString());
@@ -261,7 +261,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		var servicesArg = string.Empty;
 		foreach (var prop in request.Properties)
 		{
-			if (prop.IsRequired)
+			if (prop.Property.NullableAnnotation == NullableAnnotation.NotAnnotated
+				&& !prop.Property.Type.IsValueType)
 			{
 				ctor.AddStatement($"RuleFor(r => r.{prop.Name}).NotNull();");
 			}
@@ -301,7 +302,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				parameterSources.Contains(p.DataSource)))
 			{
 				var location = property.DataSource == ModelBindingSource.Route ? "Path" : Enum.GetName(typeof(ModelBindingSource), property.DataSource);
-				var required = property.Property.Type.ToString().EndsWith("?");
+				var required = property.Property.NullableAnnotation == NullableAnnotation.NotAnnotated && !property.Property.Type.IsValueType;
 				metadata.AddStatement($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}), {(required ? "true" : "false")});");
 			}
 			if (request.HasBody)
@@ -367,9 +368,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 	}
 
-	public class EndpointConfigureMethod(MethodDeclarationSyntax syntax)
+	public class EndpointConfigureMethod
 	{
-		private readonly MethodDeclarationSyntax syntax = syntax;
 	}
 
 	internal class EndpointClass
@@ -384,7 +384,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private readonly INamedTypeSymbol? classModel;
 		public string Path { get; }
 		public bool CanBeSingleton { get; }
-		private List<PropertyInfo> properties = [];
+		private readonly List<PropertyInfo> properties = [];
 
 		public EndpointClass(ClassDeclarationSyntax syntax, SemanticModel semanticModel, AttributeSyntax attribute)
 		{
@@ -399,7 +399,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						.Where(m => m.Identifier.ToString() == "Configure").FirstOrDefault();
 			if (configureSyntax != null)
 			{
-				Configure = new EndpointConfigureMethod(configureSyntax);
+				Configure = new EndpointConfigureMethod();
 			}
 			classModel = semanticModel.GetDeclaredSymbol(syntax);
 			FullName = classModel?.OriginalDefinition.ToString() ?? string.Empty;
@@ -454,7 +454,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		public IMethodSymbol? ValidationMethod { get; set; }
 		public bool NeedsValidating => ValidationMethod != null || properties.Any(p => p.IsRequired);
-		private List<RequestProperty> properties { get; set; } = [];
+		private readonly List<RequestProperty> properties = [];
 		public IReadOnlyList<RequestProperty> Properties => properties;
 		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
 		public IEnumerable<string> PropertyValuesFromMinimalApi
@@ -467,7 +467,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 		private string? GetMinimalApiParam(RequestProperty prop)
 		{
-			var attr = prop.DataSource != ModelBindingSource.Cookie ? prop.SourceAttribute : null;
+			var attr = (prop.DataSource != ModelBindingSource.Cookie && prop.DataSource != ModelBindingSource.Body)
+				? prop.SourceAttribute : null;
 			if (attr == null)
 			{
 				return null;
@@ -570,7 +571,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private readonly SemanticModel semanticModel;
 		public RequestObject? Request { get; }
 		public bool NeedsAsync => IsTask || (Request != null && Request.NeedsValidating);
-		private string[] requestNames = ["request", "req"];
+		private readonly string[] requestNames = ["request", "req"];
 		public IEnumerable<string> GetInjectedParameters()
 		{
 			return method.ParameterList.Parameters
