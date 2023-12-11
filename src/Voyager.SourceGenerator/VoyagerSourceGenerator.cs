@@ -237,7 +237,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		if (code.Classes.All(c => c.Name != request.BodyClass))
 		{
-			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private));
+			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private))
+				.AddDirective("#pragma warning disable CS8618", "#pragma warning restore CS8618");
 			foreach (var bodyProp in request.BodyProperties)
 			{
 				var prop = requestBodyClass.AddProperty(new($"{bodyProp.Property.Type}", bodyProp.Name));

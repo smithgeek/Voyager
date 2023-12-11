@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Runner;
 
-[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 5, iterationCount: 20, invocationCount: 10000)]
+[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 5, iterationCount: 50, invocationCount: 10000)]
 public class Benchmarks
 {
 	const string QueryObjectParams = "?id=101&FirstName=Name&LastName=LastName&Age=23&phoneNumbers[0]=223422&phonenumbers[1]=11144" +

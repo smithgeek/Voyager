@@ -29,9 +29,9 @@ namespace Voyager.Generated.VoyagerBenchGen2
 				return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };
 			}
 			)());
-			VoyagerApi.Endpoint.Configure(app.MapPost("/benchmark/ok/{id}", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromRouteAttribute(Name = "id")] int id, string? firstName, string? lastName, int age, System.Collections.Generic.IEnumerable<string>? phoneNumbers) =>
+			VoyagerApi.Endpoint.Configure(app.MapPost("/benchmark2/ok/{id}", async (HttpContext context, [Microsoft.AspNetCore.Mvc.FromRouteAttribute(Name = "id")] int id, string? firstName, string? lastName, int age, System.Collections.Generic.IEnumerable<string>? phoneNumbers) =>
 			{
-				var body = await JsonSerializer.DeserializeAsync<RequestBody>(context.Request.Body, jsonOptions);
+				var body = await JsonSerializer.DeserializeAsync<ManualRequestBody>(context.Request.Body, jsonOptions);
 				var request = new VoyagerApi.Request
 				{
 					Id = id,
@@ -51,7 +51,7 @@ namespace Voyager.Generated.VoyagerBenchGen2
 			{
 				var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());
 				builder.AddParameter("id", Microsoft.OpenApi.Models.ParameterLocation.Path, typeof(int), false);
-				builder.AddBody(typeof(RequestBody));
+				builder.AddBody(typeof(ManualRequestBody));
 				builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));
 				builder.AddResponse(200, typeof(VoyagerApi.Response));
 				return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };
@@ -59,7 +59,7 @@ namespace Voyager.Generated.VoyagerBenchGen2
 			)()));
 		}
 
-		private class RequestBody
+		private class ManualRequestBody
 		{
 			public string? FirstName { get; set; }
 			public string? LastName { get; set; }
