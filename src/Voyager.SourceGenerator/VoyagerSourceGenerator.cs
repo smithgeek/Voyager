@@ -221,10 +221,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					if (!parameters.Contains("validationResult"))
 					{
 						var @if = mapContent.AddIf("!validationResult.IsValid");
-						@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
+						@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(validationResult.ToDictionary());");
 					}
 				}
-				var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
+				var typedReturn = endpoint.IsIResult ? "(Microsoft.AspNetCore.Http.IResult)" : "Microsoft.AspNetCore.Http.TypedResults.Ok";
 				mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
 				mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
 				AddOpenApiMetadata(mapEndpoints, endpoint, request);
