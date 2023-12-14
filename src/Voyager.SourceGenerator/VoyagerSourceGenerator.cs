@@ -55,6 +55,11 @@ public static class Extension
 		var typeName = type.ToDisplayString().Trim('?');
 		return $"app.Services.GetRequiredService<{typeName}>();";
 	}
+
+	public static string GetAssemblyName(this GeneratorExecutionContext context)
+	{
+		return $"{context.Compilation.AssemblyName?.Replace(".", "_") ?? string.Empty}_VoyagerSourceGen";
+	}
 }
 
 [Generator]
@@ -133,7 +138,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddUsing("Voyager")
 			.AddUsing("Voyager.ModelBinding");
 
-		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{context.Compilation.AssemblyName}Gen");
+		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{context.GetAssemblyName()}");
 		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
 			.AddClass(new("VoyagerEndpoints", Access.Internal, isStatic: true))
 			.AddMethod(new("AddVoyager", access: Access.Internal, isStatic: true))
@@ -164,7 +169,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				{
 					mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
 				}
-				var minimalApiParams = new[] { "HttpContext context" }.Concat(request?.PropertyValuesFromMinimalApi ?? Enumerable.Empty<string>());
+				var minimalApiParams = new[] { "Microsoft.AspNetCore.Http.HttpContext context" }.Concat(request?.PropertyValuesFromMinimalApi ?? Enumerable.Empty<string>());
 				mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", minimalApiParams)}) =>");
 				var mapContent = mapEndpoints.AddScope();
 
@@ -228,7 +233,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 		}
 
-		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.{context.Compilation.AssemblyName}Gen.EndpointMapper>();");
+		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.{context.GetAssemblyName()}.EndpointMapper>();");
 
 		return source.Build();
 	}
