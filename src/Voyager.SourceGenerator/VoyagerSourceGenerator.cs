@@ -196,7 +196,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					{
 						if (property.DataSource == ModelBindingSource.Body)
 						{
-							var defaultValue = property.DefaultValue ?? "default";
+							var defaultValue = property.DefaultValue ?? (property.Property.NullableAnnotation == NullableAnnotation.Annotated ? "null" : "default");
 							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue}{(property.Property.NullableAnnotation == NullableAnnotation.NotAnnotated ? "!" : "")},");
 						}
 						else if (property.DataSource == ModelBindingSource.Route
