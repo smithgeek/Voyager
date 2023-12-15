@@ -152,6 +152,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
+		endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
 
 		foreach (var endpointClass in GetEndpointClasses(context))
 		{
@@ -352,11 +353,13 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			_ => "Object",
 		};
 		var genericType = string.Empty;
+		var extraArgs = string.Empty;
 		if (specializationType == "Object")
 		{
 			prefix = string.Empty;
 			suffix = string.Empty;
 			genericType = $"<{property.Property.Type.ToDisplayString().Trim('?')}>";
+			extraArgs = ", jsonOptions";
 		}
 		if (specializationType == "Number")
 		{
@@ -366,11 +369,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		var source = Enum.GetName(typeof(ModelBindingSource), property.DataSource);
 		if (prefix == "Try")
 		{
-			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(context, ModelBindingSource.{source}, \"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}, out var val{property.Name}) ? val{property.Name} : default,");
+			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{property.SourceName}\"){extraArgs}{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}, out var val{property.Name}) ? val{property.Name} : default,");
 		}
 		else
 		{
-			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(context, ModelBindingSource.{source}, \"{property.SourceName}\"{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}),");
+			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{property.SourceName}\"){extraArgs}{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}),");
 		}
 	}
 

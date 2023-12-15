@@ -35,6 +35,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MvcControllers", "Benchmark
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoyagerBench", "Benchmarks\VoyagerBench\VoyagerBench.csproj", "{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "Tests\UnitTests\UnitTests.csproj", "{6795795B-7716-47DF-89B9-66088A524926}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -73,6 +75,10 @@ Global
 		{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6795795B-7716-47DF-89B9-66088A524926}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6795795B-7716-47DF-89B9-66088A524926}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6795795B-7716-47DF-89B9-66088A524926}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6795795B-7716-47DF-89B9-66088A524926}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -86,6 +92,7 @@ Global
 		{7766F68F-B4D1-49C2-A220-4B36204D3EB1} = {AC9D763A-C67A-40DB-953E-35E481305753}
 		{C21CFB1B-8F7D-40FA-90B5-EAC8EC7B44A5} = {AC9D763A-C67A-40DB-953E-35E481305753}
 		{9C2A4518-8D6C-447D-9688-1A1CBF72BE74} = {AC9D763A-C67A-40DB-953E-35E481305753}
+		{6795795B-7716-47DF-89B9-66088A524926} = {EA72A2E3-8F1A-4CB2-8A8A-DDFD10123DDD}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {1A85F59D-8A0C-422D-B7D6-326C61D9328B}

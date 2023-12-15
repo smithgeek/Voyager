@@ -15,10 +15,10 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 	private readonly ISchemaGenerator generator;
 	private readonly SchemaRepository schemaRepository;
 
-	public SwashbuckleSchemaGenerator(IServiceProvider serviceProvider)
+	public SwashbuckleSchemaGenerator(IServiceProvider? serviceProvider)
 	{
 		generator = GetSchemaGenerator(serviceProvider);
-		schemaRepository = serviceProvider.GetService<SchemaRepository>() ?? new();
+		schemaRepository = serviceProvider?.GetService<SchemaRepository>() ?? new();
 	}
 
 	public OpenApiSchema? Generate(IEnumerable<Type> types)
@@ -48,14 +48,14 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		return schemaRepository.Schemas;
 	}
 
-	private static ISchemaGenerator GetSchemaGenerator(IServiceProvider serviceProvider)
+	private static ISchemaGenerator GetSchemaGenerator(IServiceProvider? serviceProvider)
 	{
-		return serviceProvider.GetService<ISchemaGenerator>()
+		return serviceProvider?.GetService<ISchemaGenerator>()
 			?? new SchemaGenerator(
-				serviceProvider.GetService<SchemaGeneratorOptions>() ?? new(),
-				serviceProvider.GetService<ISerializerDataContractResolver>() ??
+				serviceProvider?.GetService<SchemaGeneratorOptions>() ?? new(),
+				serviceProvider?.GetService<ISerializerDataContractResolver>() ??
 					new JsonSerializerDataContractResolver(
-						serviceProvider.GetService<IOptions<JsonOptions>>()?.Value?.JsonSerializerOptions
+						serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value?.JsonSerializerOptions
 						?? new JsonSerializerOptions()));
 	}
 }

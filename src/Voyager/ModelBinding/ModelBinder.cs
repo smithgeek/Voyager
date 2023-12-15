@@ -1,8 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Json;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Primitives;
+﻿using Microsoft.Extensions.Primitives;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -22,13 +18,11 @@ public enum ModelBindingSource
 
 public class ModelBinder : IModelBinder
 {
-	private JsonSerializerOptions? jsonOptions;
-
 	private readonly NumberFormatInfo numberFormatter = new();
 
-	public bool GetBool(HttpContext context, ModelBindingSource source, string key, DefaultValue<bool>? defaultValue = null)
+	public bool GetBool(StringValues values, DefaultValue<bool>? defaultValue = null)
 	{
-		var value = GetStringValues(context, source, key).First();
+		var value = values.FirstOrDefault();
 		if (value != null && bool.TryParse(value, out var result))
 		{
 			return result;
@@ -36,9 +30,9 @@ public class ModelBinder : IModelBinder
 		return defaultValue != null && defaultValue.Value;
 	}
 
-	public bool TryGetBool(HttpContext context, ModelBindingSource source, string key, out bool boolean, DefaultValue<bool>? defaultValue = null)
+	public bool TryGetBool(StringValues values, out bool boolean, DefaultValue<bool>? defaultValue = null)
 	{
-		var value = GetStringValues(context, source, key).FirstOrDefault();
+		var value = values.FirstOrDefault();
 		if (value != null && bool.TryParse(value, out var result))
 		{
 			boolean = result;
@@ -48,9 +42,8 @@ public class ModelBinder : IModelBinder
 		return defaultValue != null;
 	}
 
-	public IEnumerable<bool> GetBoolEnumerable(HttpContext context, ModelBindingSource source, string key, DefaultValue<IEnumerable<bool>>? defaultValue = null)
+	public IEnumerable<bool> GetBoolEnumerable(StringValues values, DefaultValue<IEnumerable<bool>>? defaultValue = null)
 	{
-		var values = GetStringValues(context, source, key);
 		if (values != StringValues.Empty)
 		{
 			return ParseBools(values);
@@ -59,7 +52,7 @@ public class ModelBinder : IModelBinder
 		return defaultValue == null ? Enumerable.Empty<bool>() : defaultValue.Value;
 	}
 
-	private IEnumerable<bool> ParseBools(StringValues values)
+	private static IEnumerable<bool> ParseBools(StringValues values)
 	{
 		foreach (var value in values)
 		{
@@ -70,9 +63,9 @@ public class ModelBinder : IModelBinder
 		}
 	}
 
-	public string GetString(HttpContext context, ModelBindingSource source, string key, DefaultValue<string>? defaultValue = null)
+	public string GetString(StringValues values, DefaultValue<string>? defaultValue = null)
 	{
-		var value = GetStringValues(context, source, key);
+		var value = values;
 		if (value != StringValues.Empty)
 		{
 			return value.ToString();
@@ -80,9 +73,9 @@ public class ModelBinder : IModelBinder
 		return defaultValue == null ? string.Empty : defaultValue.Value;
 	}
 
-	public bool TryGetString(HttpContext context, ModelBindingSource source, string key, out string result, DefaultValue<string>? defaultValue = null)
+	public bool TryGetString(StringValues values, out string result, DefaultValue<string>? defaultValue = null)
 	{
-		var value = GetStringValues(context, source, key);
+		var value = values;
 		if (value != StringValues.Empty)
 		{
 			result = value.ToString();
@@ -92,9 +85,8 @@ public class ModelBinder : IModelBinder
 		return defaultValue != null;
 	}
 
-	public IEnumerable<string> GetStringEnumerable(HttpContext context, ModelBindingSource source, string key, DefaultValue<IEnumerable<string>>? defaultValue = null)
+	public IEnumerable<string> GetStringEnumerable(StringValues values, DefaultValue<IEnumerable<string>>? defaultValue = null)
 	{
-		var values = GetStringValues(context, source, key);
 		if (values != StringValues.Empty)
 		{
 			return values;
@@ -103,10 +95,10 @@ public class ModelBinder : IModelBinder
 		return defaultValue == null ? Enumerable.Empty<string>() : defaultValue.Value;
 	}
 
-	public TNumber GetNumber<TNumber>(HttpContext context, ModelBindingSource source, string key, DefaultValue<TNumber>? defaultValue = null)
+	public TNumber GetNumber<TNumber>(StringValues values, DefaultValue<TNumber>? defaultValue = null)
 		where TNumber : INumber<TNumber>
 	{
-		var value = GetStringValues(context, source, key).FirstOrDefault();
+		var value = values.FirstOrDefault();
 		if (value != null && TNumber.TryParse(value, numberFormatter, out var result))
 		{
 			return result;
@@ -126,10 +118,9 @@ public class ModelBinder : IModelBinder
 		}
 	}
 
-	public IEnumerable<TNumber> GetNumberEnumerable<TNumber>(HttpContext context, ModelBindingSource source, string key, DefaultValue<IEnumerable<TNumber>>? defaultValue = null)
+	public IEnumerable<TNumber> GetNumberEnumerable<TNumber>(StringValues values, DefaultValue<IEnumerable<TNumber>>? defaultValue = null)
 		where TNumber : INumber<TNumber>
 	{
-		var values = GetStringValues(context, source, key);
 		if (values != StringValues.Empty)
 		{
 			return ParseNumbers<TNumber>(values);
@@ -139,10 +130,10 @@ public class ModelBinder : IModelBinder
 
 	}
 
-	public bool TryGetNumber<TNumber>(HttpContext context, ModelBindingSource source, string key, out TNumber number, DefaultValue<TNumber>? defaultValue = null)
+	public bool TryGetNumber<TNumber>(StringValues values, out TNumber number, DefaultValue<TNumber>? defaultValue = null)
 		where TNumber : INumber<TNumber>
 	{
-		var value = GetStringValues(context, source, key).FirstOrDefault();
+		var value = values.FirstOrDefault();
 		if (value != null && TNumber.TryParse(value, numberFormatter, out var result))
 		{
 			number = result;
@@ -152,30 +143,21 @@ public class ModelBinder : IModelBinder
 		return defaultValue != null;
 	}
 
-	public TObject? GetObject<TObject>(HttpContext context, ModelBindingSource source, string key, DefaultValue<TObject>? defaultValue = null)
+	public TObject? GetObject<TObject>(StringValues values, JsonSerializerOptions options, DefaultValue<TObject>? defaultValue = null)
 		where TObject : class
 	{
-		var value = GetStringValues(context, source, key);
+		var value = values;
 		TObject? obj = null;
 		if (value != StringValues.Empty)
 		{
-			obj = JsonSerializer.Deserialize<TObject>(value.ToString(), GetJsonOptions(context));
+			try
+			{
+				obj = JsonSerializer.Deserialize<TObject>(value.ToString(), options);
+			}
+			catch (JsonException)
+			{
+			}
 		}
 		return obj ?? defaultValue?.Value;
-	}
-
-	private StringValues GetStringValues(HttpContext context, ModelBindingSource source, string key)
-	{
-		return source switch
-		{
-			ModelBindingSource.Cookie => context.Request.Cookies.TryGetValue(key, out var value) ? value : null,
-			_ => StringValues.Empty
-		};
-	}
-
-	private JsonSerializerOptions GetJsonOptions(HttpContext httpContext)
-	{
-		jsonOptions ??= httpContext.RequestServices.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;
-		return jsonOptions;
 	}
 }
