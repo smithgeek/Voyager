@@ -39,3 +39,41 @@ public class TestEndpoint2
 		};
 	}
 }
+
+[VoyagerEndpoint("/anonymousResponse")]
+public class AnonymousResponse
+{
+	public IResult Get(Body request)
+	{
+		if (request.Test == null)
+		{
+			return TypedResults.Ok(new
+			{
+				something = "here"
+			});
+		}
+		return TypedResults.Ok(new
+		{
+			result = request.Test
+		});
+	}
+
+	public class Body
+	{
+		public string? Test { get; init; }
+	}
+}
+
+//[VoyagerEndpoint("/multipleInjections")]
+//public class MultipleInjections
+//{
+//	public IResult Get(Service service)
+//	{
+//		return TypedResults.Ok();
+//	}
+
+//	public IResult Post(Service service)
+//	{
+//		return TypedResults.Ok();
+//	}
+//}

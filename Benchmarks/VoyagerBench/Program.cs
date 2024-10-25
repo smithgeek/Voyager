@@ -8,7 +8,6 @@ builder.Services
 	.AddAuthorization();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddVoyager();
-builder.Services.AddVoyager2();
 
 var app = builder.Build();
 app.UseAuthorization();
@@ -53,6 +52,15 @@ namespace VoyagerApi
 		}
 	}
 
+	[VoyagerEndpoint("/static")]
+	public class StaticEndpoint
+	{
+		public static IResult Get(Service service)
+		{
+			return TypedResults.Ok(new { test = true });
+		}
+	}
+
 	[VoyagerEndpoint("/benchmark/ok/{id}")]
 	public class Endpoint : IConfigurableEndpoint
 	{
@@ -75,11 +83,82 @@ namespace VoyagerApi
 		}
 	}
 
+	[VoyagerEndpoint("/anonymous")]
+	public class AnonymousEndpoint
+	{
+		public IResult Get(Body request)
+		{
+			if (request.Test != null)
+			{
+				return TypedResults.Ok(new
+				{
+					something = "here"
+				});
+			}
+			return TypedResults.Ok(new
+			{
+				result = request.Test
+			});
+		}
+
+		public class Body
+		{
+			public string? Test { get; init; }
+		}
+	}
+
+	namespace Duplicate
+	{
+		[VoyagerEndpoint("/duplicate/anonymous")]
+		public class AnonymousEndpoint
+		{
+			public IResult Get(Body request)
+			{
+				if (request.Test != null)
+				{
+					return TypedResults.Ok(new
+					{
+						something = "here"
+					});
+				}
+				return TypedResults.Ok(new
+				{
+					result = request.Test
+				});
+			}
+
+			public class Body
+			{
+				public string? Test { get; init; }
+				public int Value { get; init; }
+			}
+		}
+	}
+
+	[VoyagerEndpoint("/multipleInjections")]
+	public class MultipleInjections
+	{
+		public IResult Get(Service service)
+		{
+			return TypedResults.Ok();
+		}
+
+		public IResult Post(Service service)
+		{
+			return TypedResults.Ok();
+		}
+	}
+
 	public class Response
 	{
 		public int Id { get; set; }
 		public string? Name { get; set; }
 		public int Age { get; set; }
 		public string? PhoneNumber { get; set; }
+	}
+
+	public class Service
+	{
+
 	}
 }

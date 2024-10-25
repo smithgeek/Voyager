@@ -150,12 +150,19 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddMethod(new("MapEndpoints", access: Access.Public))
 			.AddParameter("WebApplication app");
 		var endpointsInitRegion = mapEndpoints.AddRegion();
-		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
-		endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
+		var modelBinderAdded = false;
 
 		foreach (var endpointClass in GetEndpointClasses(context))
 		{
+			if (endpointClass.CanBeSingleton && !endpointClass.IsStatic)
+			{
+				endpointsInitRegion.AddStatement($"var {endpointClass.InstanceName} = app.Services.GetRequiredService<{endpointClass.FullName}>();");
+			}
+			if (!endpointClass.IsStatic)
+			{
+				servicesMethod.AddStatement($"services.AddTransient<{endpointClass.FullName}>();");
+			}
 			foreach (var endpoint in endpointClass.EndpointMethods)
 			{
 				var request = endpoint.Request;
@@ -165,7 +172,6 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					GenerateRequestBodyClasses(endpointMapper, endpointsInitRegion, request);
 				}
 
-				servicesMethod.AddStatement($"services.AddTransient<{endpointClass.FullName}>();");
 				if (endpointClass.Configure != null)
 				{
 					mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
@@ -174,11 +180,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", minimalApiParams)}) =>");
 				var mapContent = mapEndpoints.AddScope();
 
-				if (endpointClass.CanBeSingleton)
-				{
-					endpointsInitRegion.AddStatement($"var {endpointClass.InstanceName} = app.Services.GetRequiredService<{endpointClass.FullName}>();");
-				}
-				else
+
+				if (!endpointClass.CanBeSingleton && !endpoint.IsStatic)
 				{
 					mapContent.AddStatement($"var {endpointClass.InstanceName} = context.RequestServices.GetRequiredService<{endpointClass.FullName}>();");
 				}
@@ -188,7 +191,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				}
 				if (request?.HasBody ?? false)
 				{
-					mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.Name}Body>(context.Request.Body, jsonOptions);");
+					mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.BodyClass}>(context.Request.Body, jsonOptions);");
 				}
 				if (request != null)
 				{
@@ -209,6 +212,12 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						}
 						else
 						{
+							if (!modelBinderAdded)
+							{
+								modelBinderAdded = true;
+								endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
+								endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
+							}
 							AddPropertyAssignment(property, requestInit);
 						}
 					}
@@ -226,17 +235,42 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					}
 				}
 				var typedReturn = endpoint.IsIResult ? "(Microsoft.AspNetCore.Http.IResult)" : "Microsoft.AspNetCore.Http.TypedResults.Ok";
-				mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+				if (endpoint.IsStatic)
+				{
+					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.FullName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+				}
+				else
+				{
+					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+				}
 				mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
 				AddOpenApiMetadata(mapEndpoints, endpoint, request);
 
 				mapEndpoints.AddStatement($")()){(endpointClass.Configure == null ? "" : ")")};");
+
+				foreach (var response in endpoint.Responses)
+				{
+					GenerateResponseBodyClasses(endpointMapper, response);
+				}
 			}
 		}
 
 		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.{context.GetAssemblyName()}.EndpointMapper>();");
 
 		return source.Build();
+	}
+
+	private static void GenerateResponseBodyClasses(ClassBuilder code, ResponseObject response)
+	{
+		if (code.Classes.All(c => c.Name != response.Name))
+		{
+			var @class = code.AddClass(new(response.Name, Access.Private))
+				.AddDirective("#pragma warning disable CS8618", "#pragma warning restore CS8618");
+			foreach (var prop in response.Properties)
+			{
+				@class.AddProperty(new($"{prop.Property.Type}", prop.Name));
+			}
+		}
 	}
 
 	private static void GenerateRequestBodyClasses(ClassBuilder code, CodeBuilder endpointsInitRegion, RequestObject request)
@@ -314,7 +348,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 			if (request.HasBody)
 			{
-				metadata.AddStatement($"builder.AddBody(typeof({request.Name}Body));");
+				metadata.AddStatement($"builder.AddBody(typeof({request.BodyClass}));");
 			}
 		}
 
@@ -326,7 +360,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		metadata.AddStatement("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
 	}
 
-	private void AddPropertyAssignment(RequestProperty property, CodeBuilder code)
+	private void AddPropertyAssignment(ObjectProperty property, CodeBuilder code)
 	{
 		var parts = property.Property.Type.ToDisplayParts();
 		var typeName = property.Property.Type.ToDisplayString();
@@ -394,15 +428,21 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string Path { get; }
 		public bool CanBeSingleton { get; }
 		private readonly List<PropertyInfo> properties = [];
+		public string Namespace => classModel?.ContainingNamespace.Name ?? string.Empty;
+		public bool IsStatic => (classModel?.IsStatic ?? false) || endpointMethods.All(m => m.IsStatic);
 
 		public EndpointClass(ClassDeclarationSyntax syntax, SemanticModel semanticModel, AttributeSyntax attribute)
 		{
+			var pathToken = attribute.ArgumentList?.Arguments[0].DescendantTokens().First();
+			Path = pathToken.ToString() ?? string.Empty;
+			classModel = semanticModel.GetDeclaredSymbol(syntax);
+			FullName = classModel?.OriginalDefinition.ToString() ?? string.Empty;
 			this.syntax = syntax;
 			foreach (var (methodSyntax, httpMethod) in syntax.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
 					.Select(m => (m, httpMethods.FirstOrDefault(httpMethod => m.Identifier.ToString().Equals(httpMethod, StringComparison.OrdinalIgnoreCase))))
 					.Where((tuple) => tuple.Item2 != null))
 			{
-				endpointMethods.Add(new Endpoint(methodSyntax, semanticModel, httpMethod));
+				endpointMethods.Add(new Endpoint(methodSyntax, semanticModel, httpMethod, FullName.Replace(".", "_")));
 			}
 			var configureSyntax = syntax.Members.Where(m => m.IsKind(SyntaxKind.MethodDeclaration)).OfType<MethodDeclarationSyntax>()
 						.Where(m => m.Identifier.ToString() == "Configure").FirstOrDefault();
@@ -410,11 +450,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				Configure = new EndpointConfigureMethod();
 			}
-			classModel = semanticModel.GetDeclaredSymbol(syntax);
-			FullName = classModel?.OriginalDefinition.ToString() ?? string.Empty;
-			Path = attribute.ArgumentList?.Arguments[0].DescendantTokens().First().ToString() ?? string.Empty;
 			FindProperties();
-			CanBeSingleton = DetermineIfCanBeSingleton();
+			CanBeSingleton = (!classModel?.IsStatic ?? false) && DetermineIfCanBeSingleton();
 		}
 
 		bool DetermineIfCanBeSingleton()
@@ -463,9 +500,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 	{
 		public IMethodSymbol? ValidationMethod { get; set; }
 		public bool NeedsValidating => ValidationMethod != null || properties.Any(p => p.IsRequired);
-		private readonly List<RequestProperty> properties = [];
-		public IReadOnlyList<RequestProperty> Properties => properties;
-		public IEnumerable<RequestProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
+		private readonly List<ObjectProperty> properties = [];
+		public IReadOnlyList<ObjectProperty> Properties => properties;
+		public IEnumerable<ObjectProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
 		public IEnumerable<string> PropertyValuesFromMinimalApi
 		{
 			get
@@ -474,7 +511,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 		}
 
-		private string? GetMinimalApiParam(RequestProperty prop)
+		private string? GetMinimalApiParam(ObjectProperty prop)
 		{
 			var attr = (prop.DataSource != ModelBindingSource.Cookie && prop.DataSource != ModelBindingSource.Body)
 				? prop.SourceAttribute : null;
@@ -486,17 +523,17 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 
 		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
-		public string BodyClass => $"{Name}Body";
+		public string BodyClass => $"{Name}Request";
 		public string ValidatorClass => $"{Name}Validator";
 		public string Name { get; }
 		public string FullName { get; }
 
-		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo)
+		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo, string namePrefix)
 		{
 			var properties = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
 			foreach (var property in properties.OfType<IPropertySymbol>())
 			{
-				RequestProperty? requestProperty = null;
+				ObjectProperty? requestProperty = null;
 				foreach (var attribute in property.GetAttributes())
 				{
 					var source = attribute.AttributeClass?.Name switch
@@ -510,7 +547,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					};
 					if (source != ModelBindingSource.Body)
 					{
-						requestProperty = new RequestProperty(property)
+						requestProperty = new ObjectProperty(property)
 						{
 							Attribute = attribute,
 							DataSource = source,
@@ -519,7 +556,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						break;
 					}
 				}
-				requestProperty ??= new RequestProperty(property)
+				requestProperty ??= new ObjectProperty(property)
 				{
 					DataSource = ModelBindingSource.Body
 				};
@@ -543,12 +580,20 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					break;
 				}
 			}
-			Name = requestType;
+			Name = namePrefix;
 			FullName = requestTypeInfo.Type?.OriginalDefinition?.ToString() ?? Name;
 		}
 	}
 
-	internal class RequestProperty(IPropertySymbol property)
+	internal class ResponseObject(string name)
+	{
+		public string Name => name;
+		public List<ObjectProperty> Properties { get; } = [];
+
+		//var text = $"public {property.Type.ToString()} {objProp.SourceName}";
+	}
+
+	internal class ObjectProperty(IPropertySymbol property)
 	{
 		public bool IsValueType => Property.Type.IsValueType;
 		public string? DefaultValue { get; set; }
@@ -579,8 +624,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		private readonly MethodDeclarationSyntax method;
 		private readonly SemanticModel semanticModel;
 		public RequestObject? Request { get; }
-		public bool NeedsAsync => IsTask || (Request != null && Request.NeedsValidating);
+		public List<ResponseObject> Responses { get; } = [];
+
+		public bool NeedsAsync => IsTask || Request != null;
 		private readonly string[] requestNames = ["request", "req"];
+		public bool IsStatic => method.Modifiers.Any(SyntaxKind.StaticKeyword);
 		public IEnumerable<string> GetInjectedParameters()
 		{
 			return method.ParameterList.Parameters
@@ -594,7 +642,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				}).Where(p => p != null)!;
 		}
 
-		public Endpoint(MethodDeclarationSyntax method, SemanticModel semanticModel, string httpMethod)
+		public Endpoint(MethodDeclarationSyntax method, SemanticModel semanticModel, string httpMethod, string namePrefix)
 		{
 			ReturnType = semanticModel.GetTypeInfo(method.ReturnType).Type;
 			if (ReturnType is INamedTypeSymbol namedSymbol &&
@@ -612,14 +660,14 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			this.method = method;
 			this.semanticModel = semanticModel;
 			HttpMethod = httpMethod;
-
+			NamePrefix = $"{namePrefix}{HttpMethod}";
 			var requestTypeSyntax = method.ParameterList.Parameters.FirstOrDefault(p => requestNames.Any(rn => rn.Equals(p.Identifier.Text, StringComparison.OrdinalIgnoreCase)))?.Type;
 			var requestType = string.Empty;
 			if (requestTypeSyntax is IdentifierNameSyntax name)
 			{
 				requestType = name.Identifier.ToFullString().Trim();
 				var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
-				Request = new RequestObject(requestType, requestTypeInfo);
+				Request = new RequestObject(requestType, requestTypeInfo, NamePrefix);
 			}
 		}
 
@@ -627,6 +675,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public bool IsTask { get; set; } = false;
 		public ITypeSymbol? ReturnType { get; set; }
 		public string HttpMethod { get; }
+		public string NamePrefix { get; }
 
 		private IEnumerable<(string, string?)> GetResultFromType(ITypeSymbol? type)
 		{
@@ -675,8 +724,24 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				{
 					if (methodSymbol.ReceiverType?.ToDisplayString() == "Microsoft.AspNetCore.Http.TypedResults")
 					{
-						var type = methodSymbol.IsGenericMethod ? methodSymbol.TypeArguments[0].ToDisplayString() : null;
-						return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", type) };
+						var type = methodSymbol.IsGenericMethod ? methodSymbol.TypeArguments[0] : null;
+						if (type?.IsAnonymousType ?? false)
+						{
+							var responseObj = new ResponseObject($"{NamePrefix}Response{Responses.Count}");
+							foreach (var member in type.GetMembers())
+							{
+								if (member is IPropertySymbol property)
+								{
+									responseObj.Properties.Add(new(property));
+								}
+							}
+							Responses.Add(responseObj);
+							return [($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", responseObj.Name)];
+						}
+						else
+						{
+							return [($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", type?.ToDisplayString())];
+						}
 					}
 				}
 			}

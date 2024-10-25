@@ -10,6 +10,7 @@ builder.Services.AddSwaggerGen(config =>
 	config.AddVoyager();
 	config.SupportNonNullableReferenceTypes();
 });
+builder.Services.AddSingleton<Service>();
 
 var app = builder.Build();
 
