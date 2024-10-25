@@ -158,6 +158,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddStatement("validationErrors.TryAdd(newKey, value);");
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
+		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
+		endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
 
 		foreach (var endpointClass in GetEndpointClasses(context))
 		{
@@ -211,12 +213,6 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					foreach (var property in request.Properties.Where(p => !p.ConstructorIndex.HasValue))
 					{
 						requestInit.AddStatement($"{property.Property.Name} = {property.GetInitValue()},");
-					}
-					var doesntNeedModelBinder = new[] { ModelBindingSource.Body, ModelBindingSource.Route, ModelBindingSource.Query, ModelBindingSource.Header, ModelBindingSource.Form };
-					if (request.Properties.All(p => !doesntNeedModelBinder.Contains(p.DataSource)))
-					{
-						endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
-						endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
 					}
 				}
 				var awaitCode = endpoint.IsTask ? "await " : "";

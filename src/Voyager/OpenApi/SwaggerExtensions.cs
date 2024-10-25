@@ -10,5 +10,6 @@ public static class SwaggerExtensions
 	{
 		options.DocumentFilter<VoyagerOpenApiDocumentFilter>();
 		options.OperationFilter<VoyagerSwaggerOperationFilter>();
+		options.SchemaFilter<SwaggerRequiredSchemaFilter>();
 	}
 }
