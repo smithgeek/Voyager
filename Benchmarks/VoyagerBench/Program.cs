@@ -162,4 +162,18 @@ namespace VoyagerApi
 	{
 
 	}
+
+	[VoyagerEndpoint("/records")]
+	public class RecordsEndpoint
+	{
+		public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name)
+		{
+			public string? Other { get; init; }
+		}
+
+		public static IResult Get(GetRequest request)
+		{
+			return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name}" });
+		}
+	}
 }

@@ -1,4 +1,5 @@
-﻿using Voyager;
+﻿using Microsoft.AspNetCore.Mvc;
+using Voyager;
 
 namespace Shared.TestEndpoint;
 
@@ -47,33 +48,53 @@ public class AnonymousResponse
 	{
 		if (request.Test == null)
 		{
-			return TypedResults.Ok(new
+			var response = new ObjectResponse
 			{
-				something = "here"
-			});
+				Text = "here"
+			};
+			return TypedResults.Ok(new { response });
 		}
-		return TypedResults.Ok(new
+		var response2 = new ObjectResponse
 		{
-			result = request.Test
-		});
+			Text = request.Test,
+			OtherText = "abc"
+		};
+		return TypedResults.Ok(new { response2 });
 	}
 
 	public class Body
 	{
 		public string? Test { get; init; }
 	}
+
+	public class ObjectResponse
+	{
+		public required string Text { get; init; }
+		public string? OtherText { get; init; }
+	}
 }
 
-//[VoyagerEndpoint("/multipleInjections")]
-//public class MultipleInjections
-//{
-//	public IResult Get(Service service)
-//	{
-//		return TypedResults.Ok();
-//	}
+[VoyagerEndpoint("/multipleInjections")]
+public class MultipleInjections
+{
+	public IResult Get(Service service)
+	{
+		return TypedResults.Ok();
+	}
 
-//	public IResult Post(Service service)
-//	{
-//		return TypedResults.Ok();
-//	}
-//}
+	public IResult Post(Service service)
+	{
+		return TypedResults.Ok();
+	}
+}
+
+[VoyagerEndpoint("/records")]
+public class RecordsEndpoint
+{
+	public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name);
+
+	public static IResult Get(GetRequest request)
+	{
+		return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name}" });
+	}
+}

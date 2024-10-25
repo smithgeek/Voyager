@@ -158,7 +158,6 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddStatement("validationErrors.TryAdd(newKey, value);");
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
-		var modelBinderAdded = false;
 
 		foreach (var endpointClass in GetEndpointClasses(context))
 		{
@@ -202,31 +201,22 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				}
 				if (request != null)
 				{
-					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}", ";"));
-					foreach (var property in request.Properties)
+					var constructor = string.Empty;
+					var constructorParams = request.Properties.Where(p => p.ConstructorIndex.HasValue);
+					if (constructorParams.Any())
 					{
-						if (property.DataSource == ModelBindingSource.Body)
-						{
-							var defaultValue = property.DefaultValue ?? (property.Property.NullableAnnotation == NullableAnnotation.Annotated ? "null" : "default");
-							requestInit.AddStatement($"{property.Property.Name} = body?.{property.Name} ?? {defaultValue}{(property.Property.NullableAnnotation == NullableAnnotation.NotAnnotated ? "!" : "")},");
-						}
-						else if (property.DataSource == ModelBindingSource.Route
-							|| property.DataSource == ModelBindingSource.Query
-							|| property.DataSource == ModelBindingSource.Header
-							|| property.DataSource == ModelBindingSource.Form)
-						{
-							requestInit.AddStatement($"{property.Property.Name} = {property.SourceName},");
-						}
-						else
-						{
-							if (!modelBinderAdded)
-							{
-								modelBinderAdded = true;
-								endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
-								endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
-							}
-							AddPropertyAssignment(property, requestInit);
-						}
+						constructor = $"({string.Join(",", constructorParams.Select(p => p.GetInitValue()))})";
+					}
+					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}{constructor}", ";"));
+					foreach (var property in request.Properties.Where(p => !p.ConstructorIndex.HasValue))
+					{
+						requestInit.AddStatement($"{property.Property.Name} = {property.GetInitValue()},");
+					}
+					var doesntNeedModelBinder = new[] { ModelBindingSource.Body, ModelBindingSource.Route, ModelBindingSource.Query, ModelBindingSource.Header, ModelBindingSource.Form };
+					if (request.Properties.All(p => !doesntNeedModelBinder.Contains(p.DataSource)))
+					{
+						endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
+						endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
 					}
 				}
 				var awaitCode = endpoint.IsTask ? "await " : "";
@@ -380,56 +370,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		metadata.AddStatement("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
 	}
 
-	private void AddPropertyAssignment(ObjectProperty property, CodeBuilder code)
-	{
-		var parts = property.Property.Type.ToDisplayParts();
-		var typeName = property.Property.Type.ToDisplayString();
-		var isEnumerable = property.Property.Type.Name == "IEnumerable";
-		var suffix = isEnumerable ? "Enumerable" : "";
 
-		if (isEnumerable)
-		{
-			typeName = parts.Reverse().Skip(1).First().ToString();
-		}
-		var isNullable = typeName.EndsWith("?");
-		var prefix = string.Empty;
-		if (isNullable)
-		{
-			typeName = typeName.Trim('?');
-			prefix = "Try";
-		}
-
-		var specializationType = typeName switch
-		{
-			"byte" or "sbyte" or "decimal" or "double" or "float" or "int" or "uint" or "long" or "ulong" or "short" or "ushort" or "char" => "Number",
-			"bool" => "Bool",
-			"string" => "String",
-			_ => "Object",
-		};
-		var genericType = string.Empty;
-		var extraArgs = string.Empty;
-		if (specializationType == "Object")
-		{
-			prefix = string.Empty;
-			suffix = string.Empty;
-			genericType = $"<{property.Property.Type.ToDisplayString().Trim('?')}>";
-			extraArgs = ", jsonOptions";
-		}
-		if (specializationType == "Number")
-		{
-			genericType = $"<{typeName}>";
-		}
-		var functionName = $"{prefix}Get{specializationType}{suffix}";
-		var source = Enum.GetName(typeof(ModelBindingSource), property.DataSource);
-		if (prefix == "Try")
-		{
-			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{property.SourceName}\"){extraArgs}{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}, out var val{property.Name}) ? val{property.Name} : default,");
-		}
-		else
-		{
-			code.AddStatement($"{property.Property.Name} = modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{property.SourceName}\"){extraArgs}{(property.DefaultValue == null ? "" : $", {property.DefaultValue}")}),");
-		}
-	}
 
 	public class EndpointConfigureMethod
 	{
@@ -547,14 +488,57 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string ValidatorClass => $"{Name}Validator";
 		public string Name { get; }
 		public string FullName { get; }
+		public bool IsRecord { get; }
 
-		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo, string namePrefix)
+		private Dictionary<string, (List<AttributeData> Attributes, int? Index)> GetParameters(SyntaxNode? declaration, SemanticModel semanticModel)
 		{
+			var results = new Dictionary<string, (List<AttributeData> Attributes, int? Index)>();
+			if (declaration is RecordDeclarationSyntax recordDeclaration)
+			{
+				foreach (var parameter in recordDeclaration.ParameterList?.Parameters ?? [])
+				{
+					var name = parameter.Identifier.Text;
+					var attributes = parameter.AttributeLists.SelectMany(attrList => attrList.Attributes)
+						.Select(attr => GetAttributeData(attr, semanticModel)).Where(e => e != null).Select(e => e!).ToList();
+					results[name] = (attributes, results.Count);
+				}
+			}
+			return results;
+		}
+
+		public static AttributeData? GetAttributeData(AttributeSyntax attributeSyntax, SemanticModel semanticModel)
+		{
+			// Get the containing symbol (e.g., a class, method, property) where the attribute is applied
+			if (attributeSyntax.Parent?.Parent != null)
+			{
+				var symbol = semanticModel.GetDeclaredSymbol(attributeSyntax.Parent.Parent);
+
+				if (symbol != null)
+				{
+					// Find the AttributeData matching the attribute syntax
+					return symbol.GetAttributes()
+						.FirstOrDefault(attr => attr.ApplicationSyntaxReference?.GetSyntax()?.IsEquivalentTo(attributeSyntax) ?? false);
+				}
+			}
+			return null;
+		}
+
+		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo,
+			string namePrefix, SyntaxNode? declaringSyntax, SemanticModel semanticModel)
+		{
+			IsRecord = requestTypeInfo.ConvertedType?.IsRecord ?? false;
+			var recordParams = GetParameters(declaringSyntax, semanticModel);
 			var properties = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
 			foreach (var property in properties.OfType<IPropertySymbol>())
 			{
+				if (property.IsImplicitlyDeclared)
+				{
+					continue;
+				}
+				recordParams.TryGetValue(property.Name, out var recordParam);
+				var attributes = property.GetAttributes().Concat(recordParam.Attributes ?? []);
 				ObjectProperty? requestProperty = null;
-				foreach (var attribute in property.GetAttributes())
+				foreach (var attribute in attributes)
 				{
 					var source = attribute.AttributeClass?.Name switch
 					{
@@ -571,14 +555,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						{
 							Attribute = attribute,
 							DataSource = source,
-							SourceAttribute = $"[{attribute}]"
+							SourceAttribute = $"[{attribute}]",
+							ConstructorIndex = recordParam.Index
 						};
 						break;
 					}
 				}
 				requestProperty ??= new ObjectProperty(property)
 				{
-					DataSource = ModelBindingSource.Body
+					DataSource = ModelBindingSource.Body,
+					ConstructorIndex = recordParam.Index
 				};
 				if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
 						&& syntax.Initializer != null)
@@ -615,6 +601,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	internal class ObjectProperty(IPropertySymbol property)
 	{
+		public int? ConstructorIndex { get; set; } = null;
 		public bool IsValueType => Property.Type.IsValueType;
 		public string? DefaultValue { get; set; }
 		public AttributeData? Attribute { get; set; }
@@ -622,6 +609,77 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string SourceAttribute { get; set; } = string.Empty;
 		public bool IsRequired => Property.IsRequired;
 		public IPropertySymbol Property { get; set; } = property;
+
+		public string GetInitValue()
+		{
+			if (DataSource == ModelBindingSource.Body)
+			{
+				var defaultValue = DefaultValue ?? (property.NullableAnnotation == NullableAnnotation.Annotated ? "null" : "default");
+				return $"body?.{property.Name} ?? {defaultValue}{(property.NullableAnnotation == NullableAnnotation.NotAnnotated ? "!" : "")}";
+			}
+			else if (DataSource == ModelBindingSource.Route
+				|| DataSource == ModelBindingSource.Query
+				|| DataSource == ModelBindingSource.Header
+				|| DataSource == ModelBindingSource.Form)
+			{
+				return $"{SourceName}";
+			}
+			else
+			{
+				return GetValueFromModelBinder();
+			}
+		}
+
+		private string GetValueFromModelBinder()
+		{
+			var parts = Property.Type.ToDisplayParts();
+			var typeName = Property.Type.ToDisplayString();
+			var isEnumerable = Property.Type.Name == "IEnumerable";
+			var suffix = isEnumerable ? "Enumerable" : "";
+
+			if (isEnumerable)
+			{
+				typeName = parts.Reverse().Skip(1).First().ToString();
+			}
+			var isNullable = typeName.EndsWith("?");
+			var prefix = string.Empty;
+			if (isNullable)
+			{
+				typeName = typeName.Trim('?');
+				prefix = "Try";
+			}
+
+			var specializationType = typeName switch
+			{
+				"byte" or "sbyte" or "decimal" or "double" or "float" or "int" or "uint" or "long" or "ulong" or "short" or "ushort" or "char" => "Number",
+				"bool" => "Bool",
+				"string" => "String",
+				_ => "Object",
+			};
+			var genericType = string.Empty;
+			var extraArgs = string.Empty;
+			if (specializationType == "Object")
+			{
+				prefix = string.Empty;
+				suffix = string.Empty;
+				genericType = $"<{Property.Type.ToDisplayString().Trim('?')}>";
+				extraArgs = ", jsonOptions";
+			}
+			if (specializationType == "Number")
+			{
+				genericType = $"<{typeName}>";
+			}
+			var functionName = $"{prefix}Get{specializationType}{suffix}";
+			var source = Enum.GetName(typeof(ModelBindingSource), DataSource);
+			if (prefix == "Try")
+			{
+				return $"modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{SourceName}\"){extraArgs}{(DefaultValue == null ? "" : $", {DefaultValue}")}, out var val{Name}) ? val{Name} : default";
+			}
+			else
+			{
+				return $"modelBinder.{functionName}{genericType}(stringProvider.GetStringValues(context, ModelBindingSource.{source}, \"{SourceName}\"){extraArgs}{(DefaultValue == null ? "" : $", {DefaultValue}")})";
+			}
+		}
 
 		public string SourceName
 		{
@@ -687,7 +745,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				requestType = name.Identifier.ToFullString().Trim();
 				var requestTypeInfo = semanticModel.GetTypeInfo(requestTypeSyntax);
-				Request = new RequestObject(requestType, requestTypeInfo, NamePrefix);
+				var declaringSyntax = semanticModel.GetSymbolInfo(name).Symbol?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+				Request = new RequestObject(requestType, requestTypeInfo, NamePrefix, declaringSyntax, semanticModel);
 			}
 		}
 
