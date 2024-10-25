@@ -22,7 +22,7 @@ namespace VoyagerApi
 	public partial class Request
 	{
 		[FromRoute(Name = "id")]
-		public int Id { get; init; }
+		public int UserId { get; init; }
 		public string? FirstName { get; set; }
 		public string? LastName { get; set; }
 		public int Age { get; set; }
@@ -34,6 +34,7 @@ namespace VoyagerApi
 			validator.RuleFor(x => x.LastName).NotEmpty().WithMessage("last needed");
 			validator.RuleFor(x => x.Age).GreaterThan(10).WithMessage("too young");
 			validator.RuleFor(x => x.PhoneNumbers).NotEmpty().WithMessage("phone needed");
+			validator.RuleFor(x => x.UserId).GreaterThan(5).WithMessage("id must be greater than 5");
 		}
 
 	}
@@ -75,7 +76,7 @@ namespace VoyagerApi
 		{
 			return new Response()
 			{
-				Id = req.Id,
+				Id = req.UserId,
 				Name = req.FirstName + " " + req.LastName,
 				Age = req.Age,
 				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()

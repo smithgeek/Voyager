@@ -35,7 +35,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MvcControllers", "Benchmark
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "VoyagerBench", "Benchmarks\VoyagerBench\VoyagerBench.csproj", "{9C2A4518-8D6C-447D-9688-1A1CBF72BE74}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "Tests\UnitTests\UnitTests.csproj", "{6795795B-7716-47DF-89B9-66088A524926}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "UnitTests", "Tests\UnitTests\UnitTests.csproj", "{6795795B-7716-47DF-89B9-66088A524926}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

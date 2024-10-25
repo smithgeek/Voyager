@@ -149,6 +149,13 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddBase("Voyager.IVoyagerMapping")
 			.AddMethod(new("MapEndpoints", access: Access.Public))
 			.AddParameter("WebApplication app");
+		endpointMapper.AddMethod(new("ReplaceKey", access: Access.Private, isStatic: true))
+			.AddParameter("IDictionary<string, string[]> validationErrors")
+			.AddParameter("string oldKey")
+			.AddParameter("string newKey")
+			.AddIf("validationErrors.TryGetValue(oldKey, out var value)")
+			.AddStatement("validationErrors.Remove(oldKey);")
+			.AddStatement("validationErrors.TryAdd(newKey, value);");
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
 		var modelBinderAdded = false;
@@ -231,7 +238,20 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					if (!parameters.Contains("validationResult"))
 					{
 						var @if = mapContent.AddIf("!validationResult.IsValid");
-						@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(validationResult.ToDictionary());");
+						var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null);
+						if (propertiesWithAttributes.Any())
+						{
+							@if.AddStatement("var dictionary = validationResult.ToDictionary();");
+							foreach (var property in propertiesWithAttributes)
+							{
+								@if.AddStatement($"ReplaceKey(dictionary, \"{property.Property.Name}\", \"{property.SourceName}\");");
+							}
+							@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(dictionary);");
+						}
+						else
+						{
+							@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(validationResult.ToDictionary());");
+						}
 					}
 				}
 				var typedReturn = endpoint.IsIResult ? "(Microsoft.AspNetCore.Http.IResult)" : "Microsoft.AspNetCore.Http.TypedResults.Ok";
