@@ -10,6 +10,7 @@
 
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="11.8.1" />
+    <PackageReference Include="Validot" Version="2.5.0" />
   </ItemGroup>
 
   <ItemGroup>

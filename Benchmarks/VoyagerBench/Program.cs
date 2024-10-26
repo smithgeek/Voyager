@@ -1,17 +1,28 @@
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
+using Validot;
 using Voyager;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Services
 	.AddAuthorization();
-builder.Services.AddHttpContextAccessor();
 builder.Services.AddVoyager();
+
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(config =>
+{
+	config.AddVoyager();
+	config.SupportNonNullableReferenceTypes();
+});
 
 var app = builder.Build();
 app.UseAuthorization();
 app.MapVoyager();
+
+app.MapSwagger();
+app.UseSwagger();
+
 app.Urls.Add("http://0.0.0.0:5000");
 app.Run();
 
@@ -19,11 +30,10 @@ namespace VoyagerApi
 {
 	public partial class Program { }
 
-	public partial class Request
+	public record Request(string? FirstName)
 	{
 		[FromRoute(Name = "id")]
 		public int UserId { get; init; }
-		public string? FirstName { get; set; }
 		public string? LastName { get; set; }
 		public int Age { get; set; }
 		public IEnumerable<string>? PhoneNumbers { get; set; }
@@ -36,7 +46,26 @@ namespace VoyagerApi
 			validator.RuleFor(x => x.PhoneNumbers).NotEmpty().WithMessage("phone needed");
 			validator.RuleFor(x => x.UserId).GreaterThan(5).WithMessage("id must be greater than 5");
 		}
+	}
 
+	public record ValidotRequest(string? FirstName)
+	{
+		[FromRoute(Name = "id")]
+		public int UserId { get; init; }
+		public string? LastName { get; set; }
+		public int Age { get; set; }
+		public IEnumerable<string>? PhoneNumbers { get; set; }
+
+		public static Validot.IValidator<ValidotRequest> CreateValidator()
+		{
+			Specification<ValidotRequest> spec = _ => _
+				.Member(m => m.FirstName, m => m.NotEmpty().WithMessage("name needed"))
+				.Member(m => m.LastName, m => m.NotEmpty().WithMessage("last needed"))
+				.Member(m => m.Age, m => m.GreaterThan(10).WithMessage("too young"))
+				.Member(m => m.PhoneNumbers, m => m.NotEmptyCollection().WithMessage("phone needed"))
+				.Member(m => m.UserId, m => m.GreaterThan(5).WithMessage("id must be greater than 5"));
+			return Validator.Factory.Create(spec);
+		}
 	}
 
 	interface IConfigurableEndpoint
@@ -73,6 +102,28 @@ namespace VoyagerApi
 		}
 
 		public Response Post(Request req, ILogger<Program> logger)
+		{
+			return new Response()
+			{
+				Id = req.UserId,
+				Name = req.FirstName + " " + req.LastName,
+				Age = req.Age,
+				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()
+			};
+		}
+	}
+
+	[VoyagerEndpoint("/validot/benchmark/ok/{id}")]
+	public class ValidotEndpoint : IConfigurableEndpoint
+	{
+		public static void Configure(RouteHandlerBuilder routeHandlerBuilder)
+		{
+			routeHandlerBuilder
+				.RequireAuthorization()
+				.AllowAnonymous();
+		}
+
+		public Response Post(ValidotRequest req, ILogger<Program> logger, Validot.Results.IValidationResult validationResult)
 		{
 			return new Response()
 			{

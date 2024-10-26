@@ -101,7 +101,7 @@ public enum Access
 	Internal
 }
 
-public class ClassBuilder(string name, Access access = Access.Internal, bool isStatic = false)
+public class ClassBuilder(string name, Access access = Access.Internal, bool isStatic = false) : ICodeBuilder
 {
 	public string Name { get; } = name;
 	public Access Access { get; } = access;
@@ -110,13 +110,21 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 	public List<PropertyBuilder> Properties { get; } = [];
 	public bool IsStatic { get; } = isStatic;
 	public List<ClassBuilder> Classes { get; } = [];
-	private string? startDirective = null;
-	private string? endDirective = null;
+	private readonly List<RegionBuilder> regions = [];
+	private readonly List<string> startDirectives = [];
+	private readonly List<string> endDirectives = [];
 
 	public ClassBuilder AddBase(string @interface)
 	{
 		BaseList.Add(@interface);
 		return this;
+	}
+
+	public RegionBuilder AddRegion()
+	{
+		var region = new RegionBuilder();
+		regions.Add(region);
+		return region;
 	}
 
 	public ClassBuilder AddClass(ClassBuilder classBuilder)
@@ -127,14 +135,17 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 
 	public ClassBuilder AddDirective(string startDirective, string? endDirective = null)
 	{
-		this.startDirective = startDirective;
-		this.endDirective = endDirective;
+		startDirectives.Add(startDirective);
+		if (endDirective != null)
+		{
+			endDirectives.Add(endDirective);
+		}
 		return this;
 	}
 
 	public void Build(IndentedTextWriter code)
 	{
-		if (startDirective != null)
+		foreach (var startDirective in startDirectives)
 		{
 			code.WriteLine(startDirective);
 		}
@@ -153,9 +164,13 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 		{
 			@class.Build(code);
 		}
+		foreach (var region in regions)
+		{
+			region.Build(code);
+		}
 		code.Indent--;
 		code.WriteLine("}");
-		if (endDirective != null)
+		foreach (var endDirective in endDirectives)
 		{
 			code.WriteLine(endDirective);
 		}
@@ -262,9 +277,9 @@ public abstract class CodeBuilder : ICodeBuilder
 		return this;
 	}
 
-	public CodeBuilder AddScope(ScopeBuilder? scopeBuilder = null)
+	public CodeBuilder AddScope(string? initial = null, string? suffix = null)
 	{
-		var scope = scopeBuilder ?? new ScopeBuilder();
+		var scope = new ScopeBuilder(initial, suffix);
 		Children.Add(scope);
 		return scope;
 	}
@@ -317,11 +332,40 @@ public class ScopeBuilder(string? initial = null, string? suffix = null) : CodeB
 
 public class RegionBuilder() : CodeBuilder, ICodeBuilder
 {
+	public List<ClassBuilder> Classes { get; } = [];
+	private readonly List<string> startDirectives = [];
+	private readonly List<string> endDirectives = [];
+
+	public RegionBuilder AddDirective(string startDirective, string? endDirective = null)
+	{
+		startDirectives.Add(startDirective);
+		if (endDirective != null)
+		{
+			endDirectives.Add(endDirective);
+		}
+		return this;
+	}
+
+	public ClassBuilder AddClass(ClassBuilder classBuilder)
+	{
+		Classes.Add(classBuilder);
+		Children.Add(classBuilder);
+		return classBuilder;
+	}
+
 	public override void Build(IndentedTextWriter code)
 	{
+		foreach (var directive in startDirectives)
+		{
+			code.WriteLine(directive);
+		}
 		foreach (var child in Children)
 		{
 			child.Build(code);
+		}
+		foreach (var directive in endDirectives)
+		{
+			code.WriteLine(directive);
 		}
 	}
 }

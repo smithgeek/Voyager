@@ -19,9 +19,27 @@ public enum ModelBindingSource
 	Body
 }
 
+public enum InstanceInfoFlags
+{
+	None,
+	FluentValidationResult,
+	ValidotResult
+}
+
+public class InstanceInfo
+{
+	public InstanceInfo(string code)
+	{
+		Code = code;
+	}
+	public string Code { get; private set; }
+
+	public InstanceInfoFlags Flag { get; set; } = InstanceInfoFlags.None;
+}
+
 public static class Extension
 {
-	public static string? GetInstanceOf(this ITypeSymbol? type)
+	public static InstanceInfo? GetInstanceOf(this ITypeSymbol? type)
 	{
 		if (type is null)
 		{
@@ -30,19 +48,23 @@ public static class Extension
 		var typeName = type.ToDisplayString().Trim('?');
 		if (typeName == "Microsoft.AspNetCore.Http.HttpContext")
 		{
-			return "context";
+			return new InstanceInfo("context");
 		}
 		else if (typeName == "System.Threading.CancellationToken")
 		{
-			return "context.RequestAborted";
+			return new InstanceInfo("context.RequestAborted");
 		}
 		else if (typeName == "FluentValidation.Results.ValidationResult")
 		{
-			return "validationResult";
+			return new InstanceInfo("validationResult") { Flag = InstanceInfoFlags.FluentValidationResult };
+		}
+		else if (typeName == "Validot.Results.IValidationResult")
+		{
+			return new InstanceInfo("validationResult") { Flag = InstanceInfoFlags.ValidotResult };
 		}
 		else
 		{
-			return $"context.RequestServices.GetRequiredService<{typeName}>()";
+			return new InstanceInfo($"context.RequestServices.GetRequiredService<{typeName}>()");
 		}
 	}
 
@@ -136,6 +158,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddUsing("Microsoft.Extensions.Options")
 			.AddUsing("System.Text.Json")
 			.AddUsing("Voyager")
+			.AddUsing("Voyager.Extensions")
 			.AddUsing("Voyager.ModelBinding");
 
 		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{context.GetAssemblyName()}");
@@ -149,17 +172,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddBase("Voyager.IVoyagerMapping")
 			.AddMethod(new("MapEndpoints", access: Access.Public))
 			.AddParameter("WebApplication app");
-		endpointMapper.AddMethod(new("ReplaceKey", access: Access.Private, isStatic: true))
-			.AddParameter("IDictionary<string, string[]> validationErrors")
-			.AddParameter("string oldKey")
-			.AddParameter("string newKey")
-			.AddIf("validationErrors.TryGetValue(oldKey, out var value)")
-			.AddStatement("validationErrors.Remove(oldKey);")
-			.AddStatement("validationErrors.TryAdd(newKey, value);");
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
 		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
 		endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
+
+		var classesRegion = endpointMapper.AddRegion()
+			.AddDirective("#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor.", "#pragma warning restore CS8618")
+			.AddDirective("#pragma warning disable IDE1006 // Naming Styles", "#pragma warning restore IDE1006");
+
+		var validationsAdded = new HashSet<string>();
 
 		foreach (var endpointClass in GetEndpointClasses(context))
 		{
@@ -175,9 +197,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				var request = endpoint.Request;
 
-				if (request != null)
+				if (request != null && request.Properties.Any(p => p.DataSource != ModelBindingSource.Body))
 				{
-					GenerateRequestBodyClasses(endpointMapper, endpointsInitRegion, request);
+					GenerateRequestBodyClasses(classesRegion, endpointsInitRegion, request);
 				}
 
 				if (endpointClass.Configure != null)
@@ -199,9 +221,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				}
 				if (request?.HasBody ?? false)
 				{
-					mapContent.AddStatement($"var body = await JsonSerializer.DeserializeAsync<{request.BodyClass}>(context.Request.Body, jsonOptions);");
+					var variableName = request.NeedsBodyClassGenerated ? "body" : "request";
+					mapContent.AddStatement($"var {variableName} = await JsonSerializer.DeserializeAsync<{request.BodyClass}>(context.Request.Body, jsonOptions);");
+					if (!request.NeedsBodyClassGenerated)
+					{
+						var @if = mapContent.AddIf("request == null");
+						@if.AddStatement("return TypedResults.Problem(\"Unable to parse request body\", statusCode: 400);");
+					}
 				}
-				if (request != null)
+				if (request != null && request.NeedsBodyClassGenerated)
 				{
 					var constructor = string.Empty;
 					var constructorParams = request.Properties.Where(p => p.ConstructorIndex.HasValue);
@@ -209,7 +237,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					{
 						constructor = $"({string.Join(",", constructorParams.Select(p => p.GetInitValue()))})";
 					}
-					var requestInit = mapContent.AddScope(new($"var request = new {request.FullName}{constructor}", ";"));
+					var requestInit = mapContent.AddScope($"var request = new {request.FullName}{constructor}", ";");
 					foreach (var property in request.Properties.Where(p => !p.ConstructorIndex.HasValue))
 					{
 						requestInit.AddStatement($"{property.Property.Name} = {property.GetInitValue()},");
@@ -220,34 +248,71 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				var parameters = endpoint.GetInjectedParameters();
 				if (request?.NeedsValidating ?? false)
 				{
-					mapContent.AddStatement($"var validationResult = await inst{request.ValidatorClass}.ValidateAsync(request);");
-					if (!parameters.Contains("validationResult"))
+					var validatorVariableName = $"validator_{request.FullName.Replace(".", "_")}";
+					if (!validationsAdded.Contains(validatorVariableName))
 					{
-						var @if = mapContent.AddIf("!validationResult.IsValid");
-						var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
-						if (propertiesWithAttributes.Any())
+						validationsAdded.Add(validatorVariableName);
+						if (request.ValidationMode == ValidationMode.FluentValidation)
 						{
-							@if.AddStatement("var dictionary = validationResult.ToDictionary();");
-							foreach (var property in propertiesWithAttributes)
+							endpointsInitRegion.AddStatement($"var {validatorVariableName} = new Voyager.Validation.GenericValidator<{request.FullName}>();");
+							CallValidation(endpointsInitRegion, request, validatorVariableName);
+						}
+						else if (request.ValidationMode == ValidationMode.Validot)
+						{
+							endpointsInitRegion.AddStatement($"var {validatorVariableName} = {request.FullName}.{request.ValidationMethod!.Name}();");
+						}
+					}
+
+					if (request.ValidationMode == ValidationMode.FluentValidation)
+					{
+						mapContent.AddStatement($"var validationResult = await {validatorVariableName}.ValidateAsync(request);");
+
+						if (parameters.All(p => p.Flag != InstanceInfoFlags.FluentValidationResult))
+						{
+							var @if = mapContent.AddIf("!validationResult.IsValid");
+							var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
+							if (propertiesWithAttributes.Any())
 							{
-								@if.AddStatement($"ReplaceKey(dictionary, \"{property.Property.Name}\", \"{property.SourceName}\");");
+								@if.AddStatement("var dictionary = validationResult.ToDictionary();");
+								foreach (var property in propertiesWithAttributes)
+								{
+									@if.AddStatement($"dictionary.ReplaceKey(\"{property.Property.Name}\", \"{property.SourceName}\");");
+								}
+								@if.AddStatement("return Results.ValidationProblem(dictionary);");
+							}
+							else
+							{
+								@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
+							}
+						}
+					}
+					else if (request.ValidationMode == ValidationMode.Validot)
+					{
+						mapContent.AddStatement($"var validationResult = {validatorVariableName}.Validate(request);");
+						if (parameters.All(p => p.Flag != InstanceInfoFlags.ValidotResult))
+						{
+							var @if = mapContent.AddIf("validationResult.AnyErrors");
+							@if.AddStatement("var dictionary = validationResult.MessageMap.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray());");
+							var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
+							if (propertiesWithAttributes.Any())
+							{
+								foreach (var property in propertiesWithAttributes)
+								{
+									@if.AddStatement($"dictionary.ReplaceKey(\"{property.Property.Name}\", \"{property.SourceName}\");");
+								}
 							}
 							@if.AddStatement("return Results.ValidationProblem(dictionary);");
-						}
-						else
-						{
-							@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
 						}
 					}
 				}
 				var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
 				if (endpoint.IsStatic)
 				{
-					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.FullName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.FullName}.{endpoint.HttpMethod}({string.Join(", ", parameters.Select(p => p.Code))}));");
 				}
 				else
 				{
-					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
+					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.InstanceName}.{endpoint.HttpMethod}({string.Join(", ", parameters.Select(p => p.Code))}));");
 				}
 				mapEndpoints.AddStatement(").WithMetadata(new Func<Voyager.OpenApi.VoyagerOpenApiMetadata>(() => ");
 				AddOpenApiMetadata(mapEndpoints, endpoint, request);
@@ -256,7 +321,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 				foreach (var response in endpoint.Responses)
 				{
-					GenerateResponseBodyClasses(endpointMapper, response);
+					GenerateResponseBodyClasses(classesRegion, response);
 				}
 			}
 		}
@@ -266,12 +331,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		return source.Build();
 	}
 
-	private static void GenerateResponseBodyClasses(ClassBuilder code, ResponseObject response)
+	private static void GenerateResponseBodyClasses(RegionBuilder code, ResponseObject response)
 	{
 		if (code.Classes.All(c => c.Name != response.Name))
 		{
-			var @class = code.AddClass(new(response.Name, Access.Private))
-				.AddDirective("#pragma warning disable CS8618", "#pragma warning restore CS8618");
+			var @class = code.AddClass(new(response.Name, Access.Private));
 			foreach (var prop in response.Properties)
 			{
 				@class.AddProperty(new($"{prop.Property.Type}", prop.Name));
@@ -279,12 +343,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 	}
 
-	private static void GenerateRequestBodyClasses(ClassBuilder code, CodeBuilder endpointsInitRegion, RequestObject request)
+	private static void GenerateRequestBodyClasses(RegionBuilder code, CodeBuilder endpointsInitRegion, RequestObject request)
 	{
 		if (code.Classes.All(c => c.Name != request.BodyClass))
 		{
-			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private))
-				.AddDirective("#pragma warning disable CS8618", "#pragma warning restore CS8618");
+			var requestBodyClass = code.AddClass(new(request.BodyClass, Access.Private));
 			foreach (var bodyProp in request.BodyProperties)
 			{
 				var prop = requestBodyClass.AddProperty(new($"{bodyProp.Property.Type}", bodyProp.Name));
@@ -293,50 +356,37 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					prop.Attributes.Add(attr.ToString());
 				}
 			}
-			if (request.NeedsValidating)
-			{
-				CreateValidatorClass(code, request, endpointsInitRegion);
-			}
 		}
 	}
 
-	private static void CreateValidatorClass(ClassBuilder code, RequestObject request, CodeBuilder endpointsInitRegion)
+	private static void CallValidation(CodeBuilder code, RequestObject request, string variableName)
 	{
-		var validatorClass = code.AddClass(new($"{request.ValidatorClass}", Access.Public));
-		validatorClass.AddBase($"AbstractValidator<{request.FullName}>");
-		var ctor = validatorClass.AddMethod(new($"{request.ValidatorClass}", "", Access.Public));
 		var servicesArg = string.Empty;
 		foreach (var prop in request.Properties)
 		{
 			if (prop.Property.NullableAnnotation == NullableAnnotation.NotAnnotated
 				&& !prop.Property.Type.IsValueType)
 			{
-				ctor.AddStatement($"RuleFor(r => r.{prop.Name}).NotNull();");
+				code.AddStatement($"{variableName}.RuleFor(r => r.{prop.Name}).NotNull();");
 			}
 		}
 		if (request.ValidationMethod != null)
 		{
-			if (request.ValidationMethod.Parameters.Length > 1)
-			{
-				ctor.AddParameter("IServiceProvider services");
-				servicesArg = "app.Services";
-			}
 			List<string> parameters = [];
 			foreach (var parameter in request.ValidationMethod.Parameters)
 			{
 				if (parameter.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{request.FullName}>")
 				{
-					parameters.Add("this");
+					parameters.Add(variableName);
 				}
 				else
 				{
-					ctor.AddStatement($"var {parameter.Name} = services.GetService<{parameter.Type.ToDisplayString()}>();");
-					parameters.Add(parameter.Name);
+					var getService = parameter.Type.NullableAnnotation == NullableAnnotation.NotAnnotated ? "GetRequiredService" : "GetService";
+					parameters.Add($"app.Services.{getService}<{parameter.Type.ToDisplayString()}>()");
 				}
 			}
-			ctor.AddStatement($"{request.FullName}.{request.ValidationMethod.Name}({string.Join(", ", parameters)});");
+			code.AddStatement($"{request.FullName}.{request.ValidationMethod.Name}({string.Join(", ", parameters)});");
 		}
-		endpointsInitRegion.AddStatement($"var inst{request.ValidatorClass} = new {request.ValidatorClass}({servicesArg});");
 	}
 
 	private void AddOpenApiMetadata(MethodBuilder mapEndpoints, Endpoint endpoint, RequestObject? request)
@@ -453,10 +503,17 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 	}
 
+	internal enum ValidationMode
+	{
+		FluentValidation,
+		Validot
+	}
+
 	internal class RequestObject
 	{
 		public IMethodSymbol? ValidationMethod { get; set; }
 		public bool NeedsValidating => ValidationMethod != null || properties.Any(p => p.IsRequired);
+		public ValidationMode ValidationMode { get; private set; } = ValidationMode.FluentValidation;
 		private readonly List<ObjectProperty> properties = [];
 		public IReadOnlyList<ObjectProperty> Properties => properties;
 		public IEnumerable<ObjectProperty> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
@@ -485,8 +542,8 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		}
 
 		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
-		public string BodyClass => $"{Name}Request";
-		public string ValidatorClass => $"{Name}Validator";
+		public bool NeedsBodyClassGenerated => Properties.Any(p => p.DataSource != ModelBindingSource.Body);
+		public string BodyClass => NeedsBodyClassGenerated ? $"{Name}RequestBody" : FullName;
 		public string Name { get; }
 		public string FullName { get; }
 		public bool IsRecord { get; }
@@ -580,6 +637,10 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				this.properties.Add(requestProperty);
 			}
 
+			Name = namePrefix;
+			FullName = requestTypeInfo.Type?.OriginalDefinition?.ToString() ?? Name;
+
+
 			var staticMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
 				&& m.IsStatic).OfType<IMethodSymbol>();
 
@@ -591,9 +652,12 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					ValidationMethod = staticMethod;
 					break;
 				}
+				if (staticMethod.ReturnType.ToDisplayString().Contains($"Validot.IValidator<{FullName}>"))
+				{
+					ValidationMode = ValidationMode.Validot;
+					ValidationMethod = staticMethod;
+				}
 			}
-			Name = namePrefix;
-			FullName = requestTypeInfo.Type?.OriginalDefinition?.ToString() ?? Name;
 		}
 	}
 
@@ -713,14 +777,14 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public bool NeedsAsync => IsTask || Request != null;
 		private readonly string[] requestNames = ["request", "req"];
 		public bool IsStatic => method.Modifiers.Any(SyntaxKind.StaticKeyword);
-		public IEnumerable<string> GetInjectedParameters()
+		public IEnumerable<InstanceInfo> GetInjectedParameters()
 		{
 			return method.ParameterList.Parameters
 				.Select(p =>
 				{
 					if (requestNames.Any(rn => rn.Equals(p.Identifier.ValueText, StringComparison.Ordinal)))
 					{
-						return "request";
+						return new InstanceInfo("request");
 					}
 					return semanticModel.GetTypeInfo(p.Type!).Type.GetInstanceOf();
 				}).Where(p => p != null)!;

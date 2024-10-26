@@ -41,17 +41,26 @@ public class Benchmarks
 		Encoding.UTF8,
 		"application/json");
 
-	[Benchmark]
-	public Task AspNetCoreMvc()
+	[Benchmark(Baseline = true)]
+	public async Task Voyager()
 	{
-		var msg = new HttpRequestMessage
+		await VoyagerClient.SendAsync(new()
 		{
 			Method = HttpMethod.Post,
-			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
+			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark/ok/123"),
 			Content = _payload
-		};
+		});
+	}
 
-		return MvcClient.SendAsync(msg);
+	[Benchmark]
+	public async Task VoyagerValidot()
+	{
+		await VoyagerClient.SendAsync(new()
+		{
+			Method = HttpMethod.Post,
+			RequestUri = new($"{VoyagerClient.BaseAddress}/validot/benchmark/ok/123"),
+			Content = _payload
+		});
 	}
 
 	[Benchmark]
@@ -65,21 +74,23 @@ public class Benchmarks
 		};
 
 		return MinimalClient.SendAsync(msg);
+
 	}
 
-
-	[Benchmark(Baseline = true)]
-	public Task Voyager()
+	[Benchmark]
+	public Task AspNetCoreMvc()
 	{
 		var msg = new HttpRequestMessage
 		{
 			Method = HttpMethod.Post,
-			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark/ok/123"),
+			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
 			Content = _payload
 		};
 
-		return VoyagerClient.SendAsync(msg);
+		return MvcClient.SendAsync(msg);
 	}
+
+
 
 	//[Benchmark]
 	public Task VoyagerTests()
