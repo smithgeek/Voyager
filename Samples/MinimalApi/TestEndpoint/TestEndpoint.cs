@@ -91,10 +91,25 @@ public class MultipleInjections
 [VoyagerEndpoint("/records")]
 public class RecordsEndpoint
 {
-	public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name);
+	public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name, Policy policy);
 
 	public static IResult Get(GetRequest request)
 	{
 		return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name}" });
 	}
+
+	public static IResult Post(GetRequest request)
+	{
+		return TypedResults.Ok();
+	}
+}
+
+public class Policy
+{
+	public required List<Rule> Rules { get; init; }
+}
+
+public class Rule
+{
+	public int Value { get; init; }
 }

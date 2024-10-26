@@ -184,7 +184,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				{
 					mapEndpoints.AddPartialStatement($"{endpointClass.FullName}.Configure(");
 				}
-				var minimalApiParams = new[] { "Microsoft.AspNetCore.Http.HttpContext context" }.Concat(request?.PropertyValuesFromMinimalApi ?? Enumerable.Empty<string>());
+				var minimalApiParams = new[] { "HttpContext context" }.Concat(request?.PropertyValuesFromMinimalApi ?? Enumerable.Empty<string>());
 				mapEndpoints.AddStatement($"app.Map{endpoint.HttpMethod}({endpointClass.Path}, {(endpoint.NeedsAsync ? "async" : "")} ({string.Join(", ", minimalApiParams)}) =>");
 				var mapContent = mapEndpoints.AddScope();
 
@@ -224,7 +224,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					if (!parameters.Contains("validationResult"))
 					{
 						var @if = mapContent.AddIf("!validationResult.IsValid");
-						var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null);
+						var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
 						if (propertiesWithAttributes.Any())
 						{
 							@if.AddStatement("var dictionary = validationResult.ToDictionary();");
@@ -232,15 +232,15 @@ public class VoyagerSourceGenerator : ISourceGenerator
 							{
 								@if.AddStatement($"ReplaceKey(dictionary, \"{property.Property.Name}\", \"{property.SourceName}\");");
 							}
-							@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(dictionary);");
+							@if.AddStatement("return Results.ValidationProblem(dictionary);");
 						}
 						else
 						{
-							@if.AddStatement("return Microsoft.AspNetCore.Http.Results.ValidationProblem(validationResult.ToDictionary());");
+							@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
 						}
 					}
 				}
-				var typedReturn = endpoint.IsIResult ? "(Microsoft.AspNetCore.Http.IResult)" : "Microsoft.AspNetCore.Http.TypedResults.Ok";
+				var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
 				if (endpoint.IsStatic)
 				{
 					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.FullName}.{endpoint.HttpMethod}({string.Join(", ", parameters)}));");
@@ -358,7 +358,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			}
 		}
 
-		metadata.AddStatement("builder.AddResponse(400, typeof(Microsoft.AspNetCore.Http.HttpValidationProblemDetails));");
+		metadata.AddStatement("builder.AddResponse(400, typeof(HttpValidationProblemDetails));");
 		foreach (var result in endpoint.FindResults())
 		{
 			metadata.AddStatement($"builder.AddResponse({result.StatusCode}, {(result.Type == null ? "null" : $"typeof({result.Type})")});");
@@ -476,7 +476,12 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				return null;
 			}
-			return $"{attr}{prop.Property.Type.ToDisplayString()} {prop.SourceName}";
+			var value = $"{attr.Replace("Attribute", "")}{prop.Property.Type.ToDisplayString()} {prop.SourceName}";
+			if (prop.DefaultValue != null)
+			{
+				value += $" = {prop.DefaultValue}";
+			}
+			return value;
 		}
 
 		public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
@@ -486,17 +491,18 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string FullName { get; }
 		public bool IsRecord { get; }
 
-		private Dictionary<string, (List<AttributeData> Attributes, int? Index)> GetParameters(SyntaxNode? declaration, SemanticModel semanticModel)
+		private Dictionary<string, (List<AttributeData> Attributes, int? Index, string? Default)> GetParameters(SyntaxNode? declaration, SemanticModel semanticModel)
 		{
-			var results = new Dictionary<string, (List<AttributeData> Attributes, int? Index)>();
+			var results = new Dictionary<string, (List<AttributeData> Attributes, int? Index, string? Default)>();
 			if (declaration is RecordDeclarationSyntax recordDeclaration)
 			{
 				foreach (var parameter in recordDeclaration.ParameterList?.Parameters ?? [])
 				{
+					var defaultValue = parameter.Default?.Value.ToString();
 					var name = parameter.Identifier.Text;
 					var attributes = parameter.AttributeLists.SelectMany(attrList => attrList.Attributes)
 						.Select(attr => GetAttributeData(attr, semanticModel)).Where(e => e != null).Select(e => e!).ToList();
-					results[name] = (attributes, results.Count);
+					results[name] = (attributes, results.Count, defaultValue);
 				}
 			}
 			return results;
@@ -562,7 +568,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 					DataSource = ModelBindingSource.Body,
 					ConstructorIndex = recordParam.Index
 				};
-				if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
+				if (recordParam.Default != null)
+				{
+					requestProperty.DefaultValue = recordParam.Default;
+				}
+				else if (property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is PropertyDeclarationSyntax syntax
 						&& syntax.Initializer != null)
 				{
 					requestProperty.DefaultValue = syntax.Initializer.Value.ToString();
@@ -604,7 +614,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public ModelBindingSource DataSource { get; set; } = ModelBindingSource.Body;
 		public string SourceAttribute { get; set; } = string.Empty;
 		public bool IsRequired => Property.IsRequired;
-		public IPropertySymbol Property { get; set; } = property;
+		public IPropertySymbol Property => property;
 
 		public string GetInitValue()
 		{
@@ -758,9 +768,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			{
 				if (type is INamedTypeSymbol namedSymbol && namedSymbol.TypeArguments.Any())
 				{
-					return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", namedSymbol.TypeArguments[0].ToDisplayString()) }; ;
+					return new (string, string?)[] { ($"TypedResults.{type.Name}().StatusCode", namedSymbol.TypeArguments[0].ToDisplayString()) }; ;
 				}
-				return new (string, string?)[] { ($"Microsoft.AspNetCore.Http.TypedResults.{type.Name}().StatusCode", null) };
+				return new (string, string?)[] { ($"TypedResults.{type.Name}().StatusCode", null) };
 			}
 			return Enumerable.Empty<(string, string?)>();
 		}
@@ -811,11 +821,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 								}
 							}
 							Responses.Add(responseObj);
-							return [($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", responseObj.Name)];
+							return [($"TypedResults.{methodSymbol.Name}().StatusCode", responseObj.Name)];
 						}
 						else
 						{
-							return [($"Microsoft.AspNetCore.Http.TypedResults.{methodSymbol.Name}().StatusCode", type?.ToDisplayString())];
+							return [($"TypedResults.{methodSymbol.Name}().StatusCode", type?.ToDisplayString())];
 						}
 					}
 				}

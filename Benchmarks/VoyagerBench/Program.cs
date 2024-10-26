@@ -166,14 +166,26 @@ namespace VoyagerApi
 	[VoyagerEndpoint("/records")]
 	public class RecordsEndpoint
 	{
-		public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name)
+		public record Request([FromQuery] string Id, int Value, string? Text, string Name, [FromQuery] int days = 5)
 		{
 			public string? Other { get; init; }
+
+			public static void Validate(AbstractValidator<Request> validator)
+			{
+				validator.RuleFor(r => r.Id).NotEmpty();
+			}
 		}
 
-		public static IResult Get(GetRequest request)
+		public static Response Get(Request request)
 		{
-			return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name}" });
+			return new Response($"{request.Id} {request.Value} {request.Name}");
 		}
+
+		public static bool Delete(Request request)
+		{
+			return true;
+		}
+
+		public record Response(string Value);
 	}
 }
