@@ -48,11 +48,28 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		return schemaRepository.Schemas;
 	}
 
-	private static ISchemaGenerator GetSchemaGenerator(IServiceProvider? serviceProvider)
+	private readonly HashSet<string> schemaIds = new();
+
+	private string SchemaIdSelector(string originalId)
 	{
+		var count = 2;
+		var id = originalId;
+		while (schemaIds.Contains(id))
+		{
+			id = $"{originalId}{count++}";
+		}
+		schemaIds.Add(id);
+		return id;
+	}
+
+	private ISchemaGenerator GetSchemaGenerator(IServiceProvider? serviceProvider)
+	{
+		var generatorOptions = serviceProvider?.GetService<SchemaGeneratorOptions>() ?? new();
+		var originalSelector = generatorOptions.SchemaIdSelector;
+		generatorOptions.SchemaIdSelector = type => SchemaIdSelector(originalSelector(type));
 		return serviceProvider?.GetService<ISchemaGenerator>()
 			?? new SchemaGenerator(
-				serviceProvider?.GetService<SchemaGeneratorOptions>() ?? new(),
+				generatorOptions,
 				serviceProvider?.GetService<ISerializerDataContractResolver>() ??
 					new JsonSerializerDataContractResolver(
 						serviceProvider?.GetService<IOptions<JsonOptions>>()?.Value?.JsonSerializerOptions
