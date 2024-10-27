@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Benchmarks\VoyagerBench\VoyagerBench.csproj" />
+    <ProjectReference Include="..\..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj" />
     <ProjectReference Include="..\..\src\Voyager\Voyager.csproj" />
   </ItemGroup>
 

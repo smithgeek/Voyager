@@ -10,6 +10,16 @@ using System.Text.Json;
 
 namespace Voyager.OpenApi;
 
+public static class SchemaIdMapping
+{
+	public static Dictionary<Type, string> Mappings { get; } = new();
+
+	public static void Add<Type>(string name)
+	{
+		Mappings.Add(typeof(Type), name);
+	}
+}
+
 internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 {
 	private readonly ISchemaGenerator generator;
@@ -48,17 +58,20 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 		return schemaRepository.Schemas;
 	}
 
-	private readonly HashSet<string> schemaIds = new();
-
-	private string SchemaIdSelector(string originalId)
+	private static string SchemaIdSelector(Type type, Func<string> getId)
 	{
+		if (SchemaIdMapping.Mappings.TryGetValue(type, out var mappedId))
+		{
+			return mappedId;
+		}
 		var count = 2;
+		var originalId = getId();
 		var id = originalId;
-		while (schemaIds.Contains(id))
+		while (SchemaIdMapping.Mappings.ContainsValue(id))
 		{
 			id = $"{originalId}{count++}";
 		}
-		schemaIds.Add(id);
+		SchemaIdMapping.Mappings[type] = id;
 		return id;
 	}
 
@@ -66,7 +79,7 @@ internal class SwashbuckleSchemaGenerator : IOpenApiSchemaGenerator
 	{
 		var generatorOptions = serviceProvider?.GetService<SchemaGeneratorOptions>() ?? new();
 		var originalSelector = generatorOptions.SchemaIdSelector;
-		generatorOptions.SchemaIdSelector = type => SchemaIdSelector(originalSelector(type));
+		generatorOptions.SchemaIdSelector = type => SchemaIdSelector(type, () => originalSelector(type));
 		return serviceProvider?.GetService<ISchemaGenerator>()
 			?? new SchemaGenerator(
 				generatorOptions,
