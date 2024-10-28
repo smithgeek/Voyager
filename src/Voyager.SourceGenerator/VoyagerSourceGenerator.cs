@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 
@@ -89,6 +90,8 @@ public static class Extension
 public class VoyagerSourceGenerator : ISourceGenerator
 {
 	private const string IResultInterface = "Microsoft.AspNetCore.Http.IResult";
+	private static string DebugSuffix = string.Empty;
+
 
 	private readonly ModelBindingSource[] parameterSources = [
 		ModelBindingSource.Query,
@@ -99,12 +102,27 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	public void Execute(GeneratorExecutionContext context)
 	{
+#if DEBUG
+		if (Debugger.IsAttached)
+		{
+			DebugSuffix = "Debug";
+		}
+#endif
 		var code = EndpointMapping(context);
+#if DEBUG
+		if (Debugger.IsAttached)
+		{
+#pragma warning disable RS1035 // Do not use APIs banned for analyzers
+			System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "TestingGrounds.cs"), code);
+#pragma warning restore RS1035 // Do not use APIs banned for analyzers
+		}
+#endif
 		context.AddSource($"{context.Compilation.AssemblyName}.Voyager.EndpointMapper.g.cs", code);
 	}
 
 	public void Initialize(GeneratorInitializationContext context)
 	{
+
 	}
 
 	private IEnumerable<EndpointClass> GetEndpointClasses(GeneratorExecutionContext context)
@@ -160,15 +178,16 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			.AddUsing("System.Text.Json")
 			.AddUsing("Voyager")
 			.AddUsing("Voyager.Extensions")
-			.AddUsing("Voyager.ModelBinding");
+			.AddUsing("Voyager.ModelBinding")
+			.AddUsing("Microsoft.OpenApi.Models");
 
 		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{context.GetAssemblyName()}");
 		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
 			.AddClass(new("VoyagerEndpoints", Access.Internal, isStatic: true))
-			.AddMethod(new("AddVoyager", access: Access.Internal, isStatic: true))
+			.AddMethod(new($"AddVoyager{DebugSuffix}", access: Access.Internal, isStatic: true))
 			.AddParameter("this IServiceCollection services");
 		var endpointMapper = voyagerGenNs
-			.AddClass(new("EndpointMapper"));
+			.AddClass(new($"EndpointMapper{DebugSuffix}"));
 		var mapEndpoints = endpointMapper
 			.AddBase("Voyager.IVoyagerMapping")
 			.AddMethod(new("MapEndpoints", access: Access.Public))
@@ -422,23 +441,34 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		metadata.AddStatement("var builder = Voyager.OpenApi.OperationBuilderFactory.Create(app.Services, new());");
 		if (request != null)
 		{
-			foreach (var property in request.Properties.Where(p =>
-				parameterSources.Contains(p.DataSource)))
+			var nonBodyProperties = request.Properties.Where(p =>
+				parameterSources.Contains(p.DataSource));
+			foreach (var property in nonBodyProperties)
 			{
 				var location = property.DataSource == ModelBindingSource.Route ? "Path" : Enum.GetName(typeof(ModelBindingSource), property.DataSource);
 				var required = property.Property.NullableAnnotation == NullableAnnotation.NotAnnotated && !property.Property.Type.IsValueType;
 				metadata.AddStatement($"builder.AddParameter(\"{property.SourceName}\", Microsoft.OpenApi.Models.ParameterLocation.{location}, typeof({property.Property.Type.ToString().Trim('?')}), {(required ? "true" : "false")});");
 			}
-			if (request.HasBody)
+			if (request.HasBody && request.TypeSymbol != null)
 			{
-				metadata.AddStatement($"builder.AddBody(typeof({request.BodyClass}));");
+				var excludeNames = nonBodyProperties.Select(p => p.Name);
+				metadata.AddStatement($"builder.AddBody(");
+				OpenApiSchemaGenerator.GenerateOpenApiSchemaCode(request.TypeSymbol, metadata, excludeNames);
+				metadata.AddStatement(");");
 			}
 		}
 
 		metadata.AddStatement("builder.AddResponse(400, typeof(HttpValidationProblemDetails));");
 		foreach (var result in endpoint.FindResults())
 		{
-			metadata.AddStatement($"builder.AddResponse({result.StatusCode}, {(result.Type == null ? "null" : $"typeof({result.Type})")});");
+			metadata.AddStatement($"builder.AddResponse({result.StatusCode}, {(result.TypeName == null ? "null" : $"typeof({result.TypeName})")});");
+
+			if (result.TypeSymbol != null)
+			{
+				metadata.AddStatement($"builder.AddResponse({result.StatusCode},");
+				OpenApiSchemaGenerator.GenerateOpenApiSchemaCode(result.TypeSymbol, metadata, Enumerable.Empty<string>());
+				metadata.AddStatement(");");
+			}
 		}
 		metadata.AddStatement("return new Voyager.OpenApi.VoyagerOpenApiMetadata { Operation = builder.Build() };");
 	}
@@ -609,10 +639,13 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			return null;
 		}
 
+		public ITypeSymbol? TypeSymbol { get; }
+
 		public RequestObject(string requestType, Microsoft.CodeAnalysis.TypeInfo requestTypeInfo,
 			string namePrefix, SyntaxNode? declaringSyntax, SemanticModel semanticModel)
 		{
 			IsRecord = requestTypeInfo.ConvertedType?.IsRecord ?? false;
+			TypeSymbol = requestTypeInfo.Type;
 			var recordParams = GetParameters(declaringSyntax, semanticModel);
 			var properties = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Property) ?? Enumerable.Empty<ISymbol>();
 			foreach (var property in properties.OfType<IPropertySymbol>())
@@ -690,10 +723,11 @@ public class VoyagerSourceGenerator : ISourceGenerator
 
 	internal class ResponseObject
 	{
-		public ResponseObject(string name, int index)
+		public ResponseObject(string name, int index, ITypeSymbol typeSymbol)
 		{
 			Name = $"{name}Response{index}";
 			Index = index;
+			TypeSymbol = typeSymbol;
 		}
 
 		public ResponseObject(string name)
@@ -701,6 +735,7 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			Name = name;
 		}
 		public int Index { get; }
+		public ITypeSymbol TypeSymbol { get; }
 		public string Name { get; }
 		public List<ObjectProperty> Properties { get; } = [];
 
@@ -866,20 +901,20 @@ public class VoyagerSourceGenerator : ISourceGenerator
 		public string Path { get; }
 		public string NamePrefix { get; }
 
-		private IEnumerable<(string, string?)> GetResultFromType(ITypeSymbol? type)
+		private IEnumerable<(string, string?, ITypeSymbol?)> GetResultFromType(ITypeSymbol? type)
 		{
 			if (type != null && type.ToDisplayString().StartsWith("Microsoft.AspNetCore.Http.HttpResults"))
 			{
 				if (type is INamedTypeSymbol namedSymbol && namedSymbol.TypeArguments.Any())
 				{
-					return new (string, string?)[] { ($"TypedResults.{type.Name}().StatusCode", namedSymbol.TypeArguments[0].ToDisplayString()) }; ;
+					return new (string, string?, ITypeSymbol?)[] { ($"TypedResults.{type.Name}().StatusCode", namedSymbol.TypeArguments[0].ToDisplayString(), type) }; ;
 				}
-				return new (string, string?)[] { ($"TypedResults.{type.Name}().StatusCode", null) };
+				return new (string, string?, ITypeSymbol?)[] { ($"TypedResults.{type.Name}().StatusCode", null, type) };
 			}
-			return Enumerable.Empty<(string, string?)>();
+			return Enumerable.Empty<(string, string?, ITypeSymbol?)>();
 		}
 
-		private IEnumerable<(string, string?)> GetResultFromExpression(ExpressionSyntax? expression)
+		private IEnumerable<(string, string?, ITypeSymbol?)> GetResultFromExpression(ExpressionSyntax? expression)
 		{
 			if (expression != null)
 			{
@@ -918,21 +953,21 @@ public class VoyagerSourceGenerator : ISourceGenerator
 						if (type?.IsAnonymousType ?? false)
 						{
 							var responseObj = AddResponseObject(type);
-							return [($"TypedResults.{methodSymbol.Name}().StatusCode", responseObj.Name)];
+							return [($"TypedResults.{methodSymbol.Name}().StatusCode", responseObj.Name, responseObj.TypeSymbol)];
 						}
 						else
 						{
-							return [($"TypedResults.{methodSymbol.Name}().StatusCode", type?.ToDisplayString())];
+							return [($"TypedResults.{methodSymbol.Name}().StatusCode", type?.ToDisplayString(), type)];
 						}
 					}
 				}
 			}
-			return Enumerable.Empty<(string, string?)>();
+			return Enumerable.Empty<(string, string?, ITypeSymbol?)>();
 		}
 
 		private ResponseObject AddResponseObject(ITypeSymbol typeSymbol)
 		{
-			var responseObj = new ResponseObject(NamePrefix, Responses.Count + 1);
+			var responseObj = new ResponseObject(NamePrefix, Responses.Count + 1, typeSymbol);
 			foreach (var member in typeSymbol.GetMembers())
 			{
 				if (member is IPropertySymbol property)
@@ -944,9 +979,9 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			return responseObj;
 		}
 
-		public List<(string StatusCode, string? Type)> FindResultsInNodes(IEnumerable<SyntaxNode> nodes, bool allowLambda)
+		public List<(string StatusCode, string? TypeName, ITypeSymbol?)> FindResultsInNodes(IEnumerable<SyntaxNode> nodes, bool allowLambda)
 		{
-			List<(string StatusCode, string? Type)> results = [];
+			List<(string StatusCode, string? TypeName, ITypeSymbol? TypeSymbol)> results = [];
 			var returns = nodes.OfType<ReturnStatementSyntax>()
 					.Where(rs => allowLambda || !rs.AncestorsAndSelf().OfType<LambdaExpressionSyntax>().Any() &&
 						!rs.AncestorsAndSelf().OfType<LocalFunctionStatementSyntax>().Any())
@@ -959,20 +994,20 @@ public class VoyagerSourceGenerator : ISourceGenerator
 			return results;
 		}
 
-		public List<(string StatusCode, string? Type)> FindResults()
+		public List<(string StatusCode, string? TypeName, ITypeSymbol? TypeSymbol)> FindResults()
 		{
-			var results = new List<(string, string?)>();
+			var results = new List<(string, string?, ITypeSymbol?)>();
 
 			if (!IsIResult)
 			{
 				if (ReturnType != null && !ReturnType.IsValueType)
 				{
 					var responseObject = AddResponseObject(ReturnType);
-					results.Add(("200", responseObject.Name));
+					results.Add(("200", responseObject.Name, ReturnType));
 				}
 				else
 				{
-					results.Add(("200", ReturnType?.ToDisplayString()));
+					results.Add(("200", ReturnType?.ToDisplayString(), ReturnType));
 				}
 				return results;
 			}
@@ -982,6 +1017,167 @@ public class VoyagerSourceGenerator : ISourceGenerator
 				results.AddRange(FindResultsInNodes(method.Body.DescendantNodes(), false));
 			}
 			return results;
+		}
+	}
+}
+
+public class OpenApiSchemaGenerator
+{
+	public static void GenerateOpenApiSchemaCode(ITypeSymbol typeSymbol, CodeBuilder code, IEnumerable<string> excludedProperties)
+	{
+		if (typeSymbol.IsPrimitiveType())
+		{
+			code.AddStatement(GenerateSchemaForType(typeSymbol));
+			return;
+		}
+		var schemaName = $"{typeSymbol.Name}Schema";
+
+		var scope = code.AddScope("new OpenApiSchema");
+		scope.AddStatement("Type = \"object\",");
+		var properties = scope.AddScope("Properties = new Dictionary<string, OpenApiSchema>()");
+		foreach (var member in typeSymbol.GetMembers().OfType<IPropertySymbol>())
+		{
+			if (member.IsImplicitlyDeclared || excludedProperties.Contains(member.Name))
+			{
+				continue;
+			}
+			var memberScope = properties.AddScope("", ",");
+			memberScope.AddStatement($"\"{member.Name}\",");
+			GeneratePropertySchema(member, memberScope);
+		}
+	}
+
+	private static void GeneratePropertySchema(IPropertySymbol property, CodeBuilder code)
+	{
+		var type = property.Type;
+		if (type.TryGetEnumerableElementType(out var elementType))
+		{
+			// Handle array type (e.g., List<T>, T[])
+			var nullable = property.Type.IsNullable() ? ", Nullable = true" : "";
+			code.AddStatement($"new OpenApiSchema {{ Type = \"array\", Items = {GenerateSchemaForType(elementType)}{nullable} }}");
+			return;
+		}
+
+		// Handle primitive or complex types
+		code.AddStatement(GenerateSchemaForType(type));
+	}
+
+	private static string GenerateSchemaForType(ITypeSymbol? typeSymbol)
+	{
+		if (typeSymbol == null)
+		{
+			return string.Empty;
+		}
+		var nullable = typeSymbol.IsNullable() ? ", Nullable = true" : "";
+		typeSymbol = typeSymbol.TryGetUnderlyingType();
+		return typeSymbol.SpecialType switch
+		{
+			SpecialType.System_String or SpecialType.System_Char => $"new OpenApiSchema {{ Type = \"string\"{nullable} }}",
+			SpecialType.System_Int32 => $"new OpenApiSchema {{ Type = \"integer\", Format = \"int32\"{nullable} }}",
+			SpecialType.System_Boolean => $"new OpenApiSchema {{ Type = \"boolean\"{nullable} }}",
+			SpecialType.System_Double or SpecialType.System_Decimal => $"new OpenApiSchema {{ Type = \"number\", Format = \"double\"{nullable} }}",
+			SpecialType.System_Int64 => $"new OpenApiSchema {{ Type = \"integer\", Format = \"int64\"{nullable} }}",
+			SpecialType.System_Byte or SpecialType.System_SByte or SpecialType.System_Int16
+				or SpecialType.System_UInt16 or SpecialType.System_UInt32 or SpecialType.System_UInt64
+				or SpecialType.System_Single => $"new OpenApiSchema {{ Type = \"number\"{nullable} }}",
+			_ => $"new OpenApiSchema {{ Reference = new OpenApiReference {{ Id = \"{typeSymbol.Name}\" }}, }}"
+		};
+	}
+}
+
+public static class TypeSymbolExtensions
+{
+	public static bool IsNullable(this ITypeSymbol typeSymbol)
+	{
+		return typeSymbol.NullableAnnotation != NullableAnnotation.NotAnnotated;
+	}
+
+	public static ITypeSymbol TryGetUnderlyingType(this ITypeSymbol typeSymbol)
+	{
+		// Check if the type symbol is a nullable value type
+		if (typeSymbol is INamedTypeSymbol namedType &&
+			namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+		{
+			// Return the underlying type (the first type argument of Nullable<T>)
+			return namedType.TypeArguments[0];
+		}
+
+		// Return null if it's not a nullable value type
+		return typeSymbol;
+	}
+
+	public static bool TryGetEnumerableElementType(this ITypeSymbol typeSymbol, out ITypeSymbol? elementType)
+	{
+		if (typeSymbol.SpecialType == SpecialType.System_String)
+		{
+			elementType = null;
+			return false;
+		}
+		// Check if the type is an array
+		if (typeSymbol is IArrayTypeSymbol arrayType)
+		{
+			elementType = arrayType.ElementType;
+			return true;
+		}
+
+		if (typeSymbol is INamedTypeSymbol namedSymbol
+			&& namedSymbol.OriginalDefinition.ToString() == "System.Collections.Generic.IEnumerable<T>"
+			&& namedSymbol.TypeArguments.Length == 1)
+		{
+			elementType = namedSymbol.TypeArguments[0];
+			return true;
+		}
+
+		// Check if the type implements IEnumerable<T> and extract T
+		var ienumerableType = typeSymbol
+			.AllInterfaces
+			.FirstOrDefault(i => i.OriginalDefinition.ToString() == "System.Collections.Generic.IEnumerable<T>");
+
+		if (ienumerableType != null && ienumerableType.TypeArguments.Length == 1)
+		{
+			elementType = ienumerableType.TypeArguments[0];
+			return true;
+		}
+
+		// Check if the type implements non-generic IEnumerable
+		if (typeSymbol.AllInterfaces.Any(i => i.ToString() == "System.Collections.IEnumerable"))
+		{
+			elementType = null; // No specific element type for non-generic IEnumerable
+			return true;
+		}
+
+		// Not an enumerable type
+		elementType = null;
+		return false;
+	}
+
+	public static bool IsPrimitiveType(this ITypeSymbol typeSymbol)
+	{
+		if (typeSymbol == null)
+		{
+			return false;
+		}
+
+		switch (typeSymbol.SpecialType)
+		{
+			case SpecialType.System_Boolean:
+			case SpecialType.System_Byte:
+			case SpecialType.System_SByte:
+			case SpecialType.System_Int16:
+			case SpecialType.System_UInt16:
+			case SpecialType.System_Int32:
+			case SpecialType.System_UInt32:
+			case SpecialType.System_Int64:
+			case SpecialType.System_UInt64:
+			case SpecialType.System_Single:
+			case SpecialType.System_Double:
+			case SpecialType.System_Decimal:
+			case SpecialType.System_Char:
+			case SpecialType.System_String:
+				return true;
+
+			default:
+				return false;
 		}
 	}
 }

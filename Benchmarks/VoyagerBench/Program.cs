@@ -30,13 +30,18 @@ namespace VoyagerApi
 {
 	public partial class Program { }
 
-	public record Request(string? FirstName)
+	public record Complex(int x, byte z)
+	{
+
+	}
+
+	public record Request(string? FirstName, string LastName)
 	{
 		[FromRoute(Name = "id")]
 		public int UserId { get; init; }
-		public string? LastName { get; set; }
-		public int Age { get; set; }
-		public IEnumerable<string>? PhoneNumbers { get; set; }
+		public int? Age { get; set; }
+		public IEnumerable<string?>? PhoneNumbers { get; set; }
+		public required List<Complex> Complexes { get; set; }
 
 		public static void Validate(AbstractValidator<Request> validator)
 		{
@@ -107,7 +112,7 @@ namespace VoyagerApi
 			{
 				Id = req.UserId,
 				Name = req.FirstName + " " + req.LastName,
-				Age = req.Age,
+				Age = req.Age ?? 0,
 				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()
 			};
 		}
