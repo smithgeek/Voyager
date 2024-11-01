@@ -14,6 +14,7 @@ public interface IOperationBuilder
 	void AddParameter(string name, ParameterLocation location, Type type, bool required);
 
 	void AddResponse(int statusCode, Type? type, string[]? excludeProperties = null);
+	void AddResponse(int statusCode, OpenApiSchema schema);
 
 	OpenApiOperation Build();
 }

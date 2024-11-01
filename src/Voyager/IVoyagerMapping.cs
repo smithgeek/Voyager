@@ -1,13 +1,16 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Voyager.OpenApi;
 
 namespace Voyager;
 
 public interface IVoyagerMapping
 {
-	void MapEndpoints(WebApplication app);
+	void MapEndpoints(WebApplication app, ISchemaIdGenerator schemaIdGenerator);
+
+	IDictionary<Type, OpenApiSchema> GetOpenApiComponents(ISchemaIdGenerator schemaIdGenerator);
+
+	IEnumerable<Type> GetComponentTypes();
 }

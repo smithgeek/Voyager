@@ -1,27 +1,29 @@
 using FluentValidation;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Scalar.AspNetCore;
 using Validot;
 using Voyager;
+using Voyager.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Services
 	.AddAuthorization();
 builder.Services.AddVoyager();
+builder.Services.AddOpenApi();
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(config =>
+builder.Services.AddOpenApi(options =>
 {
-	config.AddVoyager();
-	config.SupportNonNullableReferenceTypes();
+	options.AddVoyager();
 });
 
 var app = builder.Build();
 app.UseAuthorization();
 app.MapVoyager();
 
-app.MapSwagger();
-app.UseSwagger();
+app.MapOpenApi();
+app.MapScalarApiReference();
 
 app.Urls.Add("http://0.0.0.0:5000");
 app.Run();
@@ -30,12 +32,13 @@ namespace VoyagerApi
 {
 	public partial class Program { }
 
-	public record Complex(int x, byte z)
+	public record NestedComplex(DateTime Date);
+	public record Complex(int X, byte Z, NestedComplex Y)
 	{
 
 	}
 
-	public record Request(string? FirstName, string LastName)
+	public record Request(string LastName, string? FirstName = null)
 	{
 		[FromRoute(Name = "id")]
 		public int UserId { get; init; }
@@ -90,9 +93,14 @@ namespace VoyagerApi
 	[VoyagerEndpoint("/static")]
 	public class StaticEndpoint
 	{
-		public static IResult Get(Service service)
+		public static Ok<Results> Get(Service service)
 		{
-			return TypedResults.Ok(new { test = true });
+			return TypedResults.Ok(new Results { Test = true });
+		}
+
+		public class Results
+		{
+			public required bool Test { get; init; }
 		}
 	}
 
@@ -106,15 +114,19 @@ namespace VoyagerApi
 				.AllowAnonymous();
 		}
 
-		public Response Post(Request req, ILogger<Program> logger)
+		public IResult Post(Request req, ILogger<Program> logger)
 		{
-			return new Response()
+			if (req.Age > 13)
+			{
+				return TypedResults.Ok(new { Message = "You are too young." });
+			}
+			return TypedResults.Ok(new Response()
 			{
 				Id = req.UserId,
 				Name = req.FirstName + " " + req.LastName,
 				Age = req.Age ?? 0,
 				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()
-			};
+			});
 		}
 	}
 
@@ -147,14 +159,16 @@ namespace VoyagerApi
 		{
 			if (request.Test != null)
 			{
-				return TypedResults.Ok(new
-				{
-					something = "here"
-				});
+				return TypedResults.Ok(new { something = "here" });
 			}
-			return TypedResults.Ok(new
+			return TypedResults.Ok(new { result = request.Test });
+		}
+
+		public static void Configure(RouteHandlerBuilder builder)
+		{
+			builder.WithOpenApi(op =>
 			{
-				result = request.Test
+				return op;
 			});
 		}
 
@@ -169,19 +183,19 @@ namespace VoyagerApi
 		[VoyagerEndpoint("/duplicate/anonymous")]
 		public class AnonymousEndpoint
 		{
-			public IResult Get(Body request)
+			public Results<Ok<Result1>, Ok<Result2>> Get(Body request)
 			{
 				if (request.Test != null)
 				{
-					return TypedResults.Ok(new
-					{
-						something = "here"
-					});
+					return TypedResults.Ok(new Result1("here"));
 				}
-				return TypedResults.Ok(new
-				{
-					result = request.Test
-				});
+				return TypedResults.Ok(new Result2 { Result = request.Test });
+			}
+
+			public record Result1(string Something);
+			public class Result2
+			{
+				public string? Result { get; init; }
 			}
 
 			public class Body
@@ -195,12 +209,12 @@ namespace VoyagerApi
 	[VoyagerEndpoint("/multipleInjections")]
 	public class MultipleInjections
 	{
-		public IResult Get(Service service)
+		public Ok Get(Service service)
 		{
 			return TypedResults.Ok();
 		}
 
-		public IResult Post(Service service)
+		public Ok Post(Service service)
 		{
 			return TypedResults.Ok();
 		}
@@ -212,6 +226,7 @@ namespace VoyagerApi
 		public string? Name { get; set; }
 		public int Age { get; set; }
 		public string? PhoneNumber { get; set; }
+		public List<Complex> Complexes { get; set; } = [];
 	}
 
 	public class Service

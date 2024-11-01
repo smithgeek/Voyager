@@ -188,6 +188,34 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 		return builder;
 	}
 
+	internal ClassBuilder AddClass(ObjectModel model, string name)
+	{
+		var nestedClass = AddClass(new(name, Access.Public));
+		nestedClass.AddProperties(model);
+		AddProperty(new(name, $"{name}_Instance"));
+		return this;
+	}
+
+	internal ClassBuilder AddRecord(ObjectModel model, string name)
+	{
+		var record = AddRegion();
+		record.AddPartialStatement($"public record {name}(");
+		var props = model.Properties.Select(p => $"{p.GetNullableAnnotation()}{p.ToDisplayType()} {p.SourceName}");
+		record.AddPartialStatement(string.Join(", ", props));
+		record.AddStatement(");");
+		AddProperty(new(name, $"{name}_Instance"));
+		return this;
+	}
+
+	internal ClassBuilder AddProperties(ObjectModel model)
+	{
+		foreach (var prop in model.Properties)
+		{
+			Properties.Add(new(prop));
+		}
+		return this;
+	}
+
 	private string GetInterfaces()
 	{
 		if (BaseList.Any())
@@ -198,12 +226,27 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 	}
 }
 
-public class PropertyBuilder(string type, string name) : ICodeBuilder
+public class PropertyBuilder : ICodeBuilder
 {
+	public PropertyBuilder(string type, string name)
+	{
+		Type = type;
+		Name = name;
+	}
+
+	internal PropertyBuilder(PropertyModel model)
+		: this(model.ToDisplayType(), model.SourceName)
+	{
+		if (model.Required)
+		{
+			Attributes.Add("Required");
+		}
+	}
+
 	public List<string> Attributes { get; } = [];
 	public Access Access { get; } = Access.Public;
-	public string Type { get; } = type;
-	public string Name { get; } = name;
+	public string Type { get; }
+	public string Name { get; }
 
 	public void Build(IndentedTextWriter code)
 	{
@@ -277,9 +320,9 @@ public abstract class CodeBuilder : ICodeBuilder
 		return this;
 	}
 
-	public CodeBuilder AddScope(string? initial = null, string? suffix = null)
+	public CodeBuilder AddScope(string? initial = null, string? suffix = null, ScopeType type = ScopeType.CurlyBraces)
 	{
-		var scope = new ScopeBuilder(initial, suffix);
+		var scope = new ScopeBuilder(initial, suffix, type);
 		Children.Add(scope);
 		return scope;
 	}
@@ -309,7 +352,14 @@ public class StatementBuilder(string statement) : ICodeBuilder
 	}
 }
 
-public class ScopeBuilder(string? initial = null, string? suffix = null) : CodeBuilder, ICodeBuilder
+public enum ScopeType
+{
+	CurlyBraces,
+	Parens,
+	None
+}
+
+public class ScopeBuilder(string? initial = null, string? suffix = null, ScopeType type = ScopeType.CurlyBraces) : CodeBuilder, ICodeBuilder
 {
 	private readonly string? initial = initial;
 
@@ -319,14 +369,21 @@ public class ScopeBuilder(string? initial = null, string? suffix = null) : CodeB
 		{
 			code.WriteLine(initial);
 		}
-		code.WriteLine("{");
+		if (type != ScopeType.None)
+		{
+			code.WriteLine(type == ScopeType.CurlyBraces ? "{" : "(");
+		}
 		code.Indent++;
 		foreach (var child in Children)
 		{
 			child.Build(code);
 		}
 		code.Indent--;
-		code.WriteLine($"}}{suffix ?? string.Empty}");
+		if (type != ScopeType.None)
+		{
+			code.Write($"{(type == ScopeType.CurlyBraces ? "}" : ")")}");
+		}
+		code.WriteLine($"{suffix ?? string.Empty}");
 	}
 }
 
