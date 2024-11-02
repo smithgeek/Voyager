@@ -119,7 +119,8 @@ internal class SourceEmitter
 			.AddUsing("System.ComponentModel.DataAnnotations")
 			.AddUsing("Microsoft.Extensions.DependencyInjection.Extensions");
 
-		var voyagerGenNs = source.AddNamespace($"Voyager.Generated.{compilation.AssemblyName}");
+		var generatedNamespace = $"Voyager.Generated.Assemblies.g{compilation.AssemblyName}";
+		var voyagerGenNs = source.AddNamespace(generatedNamespace);
 		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
 			.AddClass(new($"VoyagerEndpoints{debugSuffix}", Access.Internal, isStatic: true))
 			.AddMethod(new($"AddVoyager{debugSuffix}", access: Access.Internal, isStatic: true))
@@ -308,7 +309,7 @@ internal class SourceEmitter
 			}
 		}
 
-		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, Voyager.Generated.{compilation.AssemblyName}.EndpointMapper{debugSuffix}>();");
+		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, {generatedNamespace}.EndpointMapper{debugSuffix}>();");
 
 		return source.Build();
 	}
