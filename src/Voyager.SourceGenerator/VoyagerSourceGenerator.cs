@@ -132,6 +132,7 @@ internal class SourceEmitter
 		var mapEndpoints = endpointMapper
 			.AddMethod(new("MapEndpoints", access: Access.Public))
 			.AddParameter("WebApplication app");
+		var genericValidatorAdded = false;
 
 		var endpointsInitRegion = mapEndpoints.AddRegion();
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
@@ -226,8 +227,13 @@ internal class SourceEmitter
 						validationsAdded.Add(validatorVariableName);
 						if (request.ValidationMode == ValidationMode.FluentValidation)
 						{
-							endpointsInitRegion.AddStatement($"var {validatorVariableName} = new Voyager.Validation.GenericValidator<{request.FullName}>();");
+							endpointsInitRegion.AddStatement($"var {validatorVariableName} = new GenericValidator<{request.FullName}>();");
 							CallValidation(endpointsInitRegion, request, validatorVariableName);
+							if (!genericValidatorAdded)
+							{
+								genericValidatorAdded = true;
+								endpointMapper.AddClass(new("GenericValidator<T>", Access.Private)).AddBase("FluentValidation.AbstractValidator<T>");
+							}
 						}
 						else if (request.ValidationMode == ValidationMode.Validot)
 						{
