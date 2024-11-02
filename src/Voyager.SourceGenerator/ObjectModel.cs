@@ -64,11 +64,6 @@ internal class PropertyModel
 
 	public bool Required => !property.Type.IsValueType && !property.Type.ToString().EndsWith("?");
 
-	public string GetNullableAnnotation()
-	{
-		return property.Type.ToString().EndsWith("?") ? "[AllowNull]" : "[NotNull]";
-	}
-
 	public string ToDisplayType()
 	{
 		return $"{Property.Type}";
@@ -121,13 +116,16 @@ internal class PropertyModel
 	public string SourceAttribute { get; set; } = string.Empty;
 	public bool IsRequired => Property.IsRequired;
 	public IPropertySymbol Property => property;
+	public bool IsNullable => property.NullableAnnotation == NullableAnnotation.Annotated;
 
 	public string GetInitValue()
 	{
 		if (DataSource == ModelBindingSource.Body)
 		{
-			var defaultValue = DefaultValue ?? (property.NullableAnnotation == NullableAnnotation.Annotated ? "null" : "default");
-			return $"body?.{property.Name} ?? {defaultValue}{(property.NullableAnnotation == NullableAnnotation.NotAnnotated ? "!" : "")}";
+			var getFunc = GetBodyPropType();
+			var modifier = IsNullable || !string.IsNullOrWhiteSpace(DefaultValue) || getFunc == null ? "Maybe" : "";
+			getFunc ??= $"Deserialize<{ToDisplayType()}>";
+			return $"body.{modifier}Get{getFunc}(\"{property.Name}\")";
 		}
 		else if (DataSource == ModelBindingSource.Route
 			|| DataSource == ModelBindingSource.Query
@@ -140,6 +138,47 @@ internal class PropertyModel
 		{
 			return GetValueFromModelBinder();
 		}
+	}
+
+	private static ITypeSymbol RemoveNullableWrapping(ITypeSymbol typeSymbol)
+	{
+		// Check if the type is a nullable type (e.g., int?)
+		if (typeSymbol is INamedTypeSymbol namedType &&
+			namedType.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T)
+		{
+			// Return the underlying type (e.g., int for int?)
+			return namedType.TypeArguments[0];
+		}
+
+		// If it's not nullable, return the original type
+		return typeSymbol;
+	}
+
+	private string? GetBodyPropType()
+	{
+		return RemoveNullableWrapping(property.Type).SpecialType switch
+		{
+			SpecialType.System_String => "String",
+			SpecialType.System_Boolean => "Bool",
+			SpecialType.System_Byte => "Byte",
+			SpecialType.System_SByte => "SByte",
+			SpecialType.System_Decimal => "Decimal",
+			SpecialType.System_Double => "Double",
+			SpecialType.System_Int16 => "Int16",
+			SpecialType.System_Int32 => "Int32",
+			SpecialType.System_Int64 => "Int64",
+			SpecialType.System_UInt16 => "UInt16",
+			SpecialType.System_UInt32 => "UInt32",
+			SpecialType.System_UInt64 => "UInt64",
+			SpecialType.System_DateTime => "DateTime",
+			SpecialType.System_Single => "Single",
+			_ => null
+		} ?? property.Type.Name switch
+		{
+			"System.Guid" => "Guid",
+			"System.DateTimeOffset" => "DateTimeOffset",
+			_ => null
+		};
 	}
 
 	private string GetValueFromModelBinder()

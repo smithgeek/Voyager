@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Runner;
 
-[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 5, iterationCount: 50, invocationCount: 10000)]
+[MemoryDiagnoser, SimpleJob(launchCount: 1, warmupCount: 10, iterationCount: 50, invocationCount: 10000)]
 public class Benchmarks
 {
 	const string QueryObjectParams = "?id=101&FirstName=Name&LastName=LastName&Age=23&phoneNumbers[0]=223422&phonenumbers[1]=11144" +
@@ -41,15 +41,17 @@ public class Benchmarks
 		Encoding.UTF8,
 		"application/json");
 
-	[Benchmark(Baseline = true)]
-	public async Task Voyager()
+	[Benchmark]
+	public Task AspNetCoreMvc()
 	{
-		await VoyagerClient.SendAsync(new()
+		var msg = new HttpRequestMessage
 		{
 			Method = HttpMethod.Post,
-			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark/ok/123"),
+			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
 			Content = _payload
-		});
+		};
+
+		return MvcClient.SendAsync(msg);
 	}
 
 	[Benchmark]
@@ -62,6 +64,19 @@ public class Benchmarks
 			Content = _payload
 		});
 	}
+
+	[Benchmark(Baseline = true)]
+	public async Task Voyager()
+	{
+		await VoyagerClient.SendAsync(new()
+		{
+			Method = HttpMethod.Post,
+			RequestUri = new($"{VoyagerClient.BaseAddress}benchmark/ok/123"),
+			Content = _payload
+		});
+	}
+
+
 
 	[Benchmark]
 	public Task MinimalApi()
@@ -77,22 +92,11 @@ public class Benchmarks
 
 	}
 
+
+
+
+
 	[Benchmark]
-	public Task AspNetCoreMvc()
-	{
-		var msg = new HttpRequestMessage
-		{
-			Method = HttpMethod.Post,
-			RequestUri = new($"{MvcClient.BaseAddress}benchmark/ok/123"),
-			Content = _payload
-		};
-
-		return MvcClient.SendAsync(msg);
-	}
-
-
-
-	//[Benchmark]
 	public Task VoyagerTests()
 	{
 		var msg = new HttpRequestMessage
@@ -121,7 +125,7 @@ public class Benchmarks
 
 
 
-	[Benchmark]
+	//[Benchmark]
 	public Task FastEndpointsCodeGen()
 	{
 		var msg = new HttpRequestMessage

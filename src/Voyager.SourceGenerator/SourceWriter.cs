@@ -200,7 +200,7 @@ public class ClassBuilder(string name, Access access = Access.Internal, bool isS
 	{
 		var record = AddRegion();
 		record.AddPartialStatement($"public record {name}(");
-		var props = model.Properties.Select(p => $"{p.GetNullableAnnotation()}{p.ToDisplayType()} {p.SourceName}");
+		var props = model.Properties.Select(p => $"{p.ToDisplayType()} {p.SourceName}");
 		record.AddPartialStatement(string.Join(", ", props));
 		record.AddStatement(");");
 		AddProperty(new(name, $"{name}_Instance"));

@@ -44,7 +44,6 @@ namespace VoyagerApi
 		public int UserId { get; init; }
 		public int? Age { get; set; }
 		public IEnumerable<string?>? PhoneNumbers { get; set; }
-		public required List<Complex> Complexes { get; set; }
 
 		public static void Validate(AbstractValidator<Request> validator)
 		{
@@ -114,19 +113,15 @@ namespace VoyagerApi
 				.AllowAnonymous();
 		}
 
-		public IResult Post(Request req, ILogger<Program> logger)
+		public Response Post(Request req, ILogger<Program> logger)
 		{
-			if (req.Age > 13)
-			{
-				return TypedResults.Ok(new { Message = "You are too young." });
-			}
-			return TypedResults.Ok(new Response()
+			return new Response()
 			{
 				Id = req.UserId,
 				Name = req.FirstName + " " + req.LastName,
 				Age = req.Age ?? 0,
 				PhoneNumber = req.PhoneNumbers?.FirstOrDefault()
-			});
+			};
 		}
 	}
 
@@ -140,7 +135,7 @@ namespace VoyagerApi
 				.AllowAnonymous();
 		}
 
-		public Response Post(ValidotRequest req, ILogger<Program> logger, Validot.Results.IValidationResult validationResult)
+		public Response Post(ValidotRequest req, ILogger<Program> logger)
 		{
 			return new Response()
 			{
@@ -226,7 +221,6 @@ namespace VoyagerApi
 		public string? Name { get; set; }
 		public int Age { get; set; }
 		public string? PhoneNumber { get; set; }
-		public List<Complex> Complexes { get; set; } = [];
 	}
 
 	public class Service
