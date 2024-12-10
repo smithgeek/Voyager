@@ -40,7 +40,10 @@ internal class Endpoint
 			(ReturnType?.Name == "Task" || ReturnType?.Name == "ValueTask"))
 		{
 			IsTask = true;
-			ReturnType = namedSymbol.TypeArguments[0];
+			if (namedSymbol.TypeArguments.Length > 0)
+			{
+				ReturnType = namedSymbol.TypeArguments[0];
+			}
 		}
 		if (ReturnType?.ToDisplayString() == IResultInterface
 			|| (ReturnType?.AllInterfaces.Select(i => i.ToDisplayString()).Contains(IResultInterface) ?? false))

@@ -2,7 +2,7 @@
   "profiles": {
     "SourceGenerator": {
       "commandName": "DebugRoslynComponent",
-      "targetProject": "..\\..\\Benchmarks\\VoyagerBench\\VoyagerBench.csproj"
+      "targetProject": "..\\..\\ClassLibrary\\ClassLibrary.csproj"
     }
   }
 }

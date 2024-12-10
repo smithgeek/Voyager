@@ -104,7 +104,7 @@ internal class SourceEmitter
 	{
 		var source = new SourceBuilder();
 		source.AddDirective("#nullable enable annotations")
-			.AddUsing("FluentValidation")
+			.AddUsing("Microsoft.AspNetCore.Http")
 			.AddUsing("Microsoft.AspNetCore.Builder")
 			.AddUsing("Microsoft.AspNetCore.Http.Json")
 			.AddUsing("Microsoft.Extensions.DependencyInjection")
@@ -118,6 +118,16 @@ internal class SourceEmitter
 			.AddUsing("Microsoft.OpenApi.Models")
 			.AddUsing("System.ComponentModel.DataAnnotations")
 			.AddUsing("Microsoft.Extensions.DependencyInjection.Extensions");
+
+		var fluentValidationAdded = false;
+		void AddFluentValidation()
+		{
+			if (!fluentValidationAdded)
+			{
+				source.AddUsing("FluentValidation");
+				fluentValidationAdded = true;
+			}
+		}
 
 		var generatedNamespace = $"Voyager.Generated.Assemblies.g{compilation.AssemblyName}";
 		var voyagerGenNs = source.AddNamespace(generatedNamespace);
@@ -199,7 +209,7 @@ internal class SourceEmitter
 					{
 						mapContent.AddStatement($"var request = await JsonSerializer.DeserializeAsync<{request.BodyClass}>(context.Request.Body, jsonOptions);");
 						var @if = mapContent.AddIf("request == null");
-						@if.AddStatement("return TypedResults.Problem(\"Unable to parse request body\", statusCode: 400);");
+						@if.AddStatement("return (IResult)TypedResults.Problem(\"Unable to parse request body\", statusCode: 400);");
 					}
 				}
 				if (request != null && request.NeedsBodyClassGenerated)
@@ -227,6 +237,7 @@ internal class SourceEmitter
 						validationsAdded.Add(validatorVariableName);
 						if (request.ValidationMode == ValidationMode.FluentValidation)
 						{
+							AddFluentValidation();
 							endpointsInitRegion.AddStatement($"var {validatorVariableName} = new GenericValidator<{request.FullName}>();");
 							CallValidation(endpointsInitRegion, request, validatorVariableName);
 							if (!genericValidatorAdded)
@@ -247,6 +258,7 @@ internal class SourceEmitter
 
 						if (parameters.All(p => p.Flag != SourceGenerator.ValidationMode.FluentValidation))
 						{
+							AddFluentValidation();
 							var @if = mapContent.AddIf("!validationResult.IsValid");
 							var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
 							if (propertiesWithAttributes.Any())

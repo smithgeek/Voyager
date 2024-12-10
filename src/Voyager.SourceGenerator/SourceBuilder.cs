@@ -7,10 +7,6 @@ using System.Text;
 
 namespace Voyager.SourceGenerator;
 
-internal class SourceWriter
-{
-}
-
 public class SourceBuilder()
 {
 	public List<string> Directives { get; } = [];
