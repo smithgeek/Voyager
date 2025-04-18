@@ -4,7 +4,7 @@ internal class InstanceInfo(string code)
 {
 	public string Code => code;
 
-	public ValidationMode Flag { get; set; } = ValidationMode.None;
+	public bool IsValidationResult { get; set; } = false;
 
 	public override string ToString()
 	{

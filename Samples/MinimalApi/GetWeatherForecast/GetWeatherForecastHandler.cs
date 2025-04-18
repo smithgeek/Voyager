@@ -31,11 +31,11 @@ namespace Shared.GetWeatherForecast
 
 		public IResult Get(GetWeatherForecastRequest request)
 		{
-			if (request.Days < 1)
+			if (request.Days == 101)
 			{
 				throw new ArgumentException($"Days must be greater than 0");
 			}
-			if (request.Days > 2)
+			if (request.Days == 2)
 			{
 				var result = TypedResults.NotFound();
 				return result;

@@ -46,7 +46,7 @@ internal class MethodResult
 						FullTypeName = namedSymbol.TypeArguments[0].ToDisplayString(),
 					};
 				}
-				return new($"TypedResults.{typeSymbol.Name}().StatusCode.ToString()", new(typeSymbol, semanticModel));
+				return new($"TypedResults.{typeSymbol.Name}().StatusCode", new(typeSymbol, semanticModel));
 			}
 			else if (typeSymbol != null)
 			{

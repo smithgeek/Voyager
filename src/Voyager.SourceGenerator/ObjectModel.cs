@@ -123,9 +123,10 @@ internal class PropertyModel
 		if (DataSource == ModelBindingSource.Body)
 		{
 			var getFunc = GetBodyPropType();
-			var modifier = IsNullable || !string.IsNullOrWhiteSpace(DefaultValue) || getFunc == null ? "Maybe" : "";
+			var modifier = IsNullable || !string.IsNullOrWhiteSpace(DefaultValue) ? "" :
+				((getFunc == "String" || getFunc == null) ? "!" : "!.Value");
 			getFunc ??= $"Deserialize<{ToDisplayType()}>";
-			return $"body.{modifier}Get{getFunc}(\"{property.Name}\")";
+			return $"body.MaybeGet{getFunc}(\"{property.Name}\"){modifier}";
 		}
 		else if (DataSource == ModelBindingSource.Route
 			|| DataSource == ModelBindingSource.Query

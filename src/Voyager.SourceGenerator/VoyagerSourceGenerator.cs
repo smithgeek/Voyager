@@ -56,7 +56,7 @@ public class VoyagerSourceGenerator : IIncrementalGenerator
 		if (Debugger.IsAttached)
 		{
 #pragma warning disable RS1035 // Do not use APIs banned for analyzers
-			System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "TestingGrounds.cs"), code);
+			System.IO.File.WriteAllText(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "Voyager_Genreated_Debug.cs"), code);
 #pragma warning restore RS1035 // Do not use APIs banned for analyzers
 		}
 #endif
@@ -100,6 +100,41 @@ public class VoyagerSourceGenerator : IIncrementalGenerator
 
 internal class SourceEmitter
 {
+	private IEnumerable<string> GetClassesInNamespace(Compilation compilation, string targetNamespace)
+	{
+		var globalNamespace = compilation.GlobalNamespace;
+		var targetNamespaceSymbol = GetNamespaceSymbol(globalNamespace, targetNamespace);
+
+		if (targetNamespaceSymbol == null)
+		{
+			return Enumerable.Empty<string>();
+		}
+
+		// Traverse the namespace to find all classes
+		return targetNamespaceSymbol
+			.GetMembers()
+			.OfType<INamedTypeSymbol>()
+			.Where(typeSymbol => typeSymbol.TypeKind == TypeKind.Class)
+			.Select(typeSymbol => typeSymbol.ToDisplayString());
+	}
+
+	private INamespaceSymbol? GetNamespaceSymbol(INamespaceSymbol globalNamespace, string targetNamespace)
+	{
+		var parts = targetNamespace.Split('.');
+		INamespaceSymbol? currentNamespace = globalNamespace;
+
+		foreach (var part in parts)
+		{
+			currentNamespace = currentNamespace.GetNamespaceMembers().FirstOrDefault(ns => ns.Name == part);
+			if (currentNamespace == null)
+			{
+				return null; // Namespace not found
+			}
+		}
+
+		return currentNamespace;
+	}
+
 	internal string Emit(IEnumerable<EndpointClass> endpointClasses, Compilation compilation, string debugSuffix)
 	{
 		var source = new SourceBuilder();
@@ -115,36 +150,47 @@ internal class SourceEmitter
 			.AddUsing("Voyager.ModelBinding")
 			.AddUsing("Voyager.OpenApi")
 			.AddUsing("Voyager.Generation")
+			.AddUsing("Voyager.Validation")
 			.AddUsing("Microsoft.OpenApi.Models")
 			.AddUsing("System.ComponentModel.DataAnnotations")
 			.AddUsing("Microsoft.Extensions.DependencyInjection.Extensions");
 
-		var fluentValidationAdded = false;
-		void AddFluentValidation()
-		{
-			if (!fluentValidationAdded)
-			{
-				source.AddUsing("FluentValidation");
-				fluentValidationAdded = true;
-			}
-		}
-
-		var generatedNamespace = $"Voyager.Generated.Assemblies.g{compilation.AssemblyName}";
+		var generatedNamespace = $"Voyager.g";
 		var voyagerGenNs = source.AddNamespace(generatedNamespace);
-		var servicesMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
+		var generatedClassName = $"{compilation.AssemblyName?.Replace(".", "_")}_EndpointMappings{debugSuffix}";
+		var dependencyInjectionMethod = source.AddNamespace("Microsoft.Extensions.DependencyInjection")
 			.AddClass(new($"VoyagerEndpoints{debugSuffix}", Access.Internal, isStatic: true))
 			.AddMethod(new($"AddVoyager{debugSuffix}", access: Access.Internal, isStatic: true))
 			.AddParameter("this IServiceCollection services")
-			.AddStatement("services.TryAddSingleton<OpenApiTransformerRepo>();");
+			.AddParameter("Action<VoyagerConfig>? configure = null")
+			.AddStatement("var config = new VoyagerConfig(services);")
+			.AddStatement("configure?.Invoke(config);")
+			.AddStatement("services.TryAddSingleton<OpenApiTransformerRepo>();")
+			.AddStatement("services.TryAddTransient<VoyagerUnifiedValidationFactory>();")
+			.AddStatement($"{generatedNamespace}.{generatedClassName}.AddServices(services);");
+		foreach (var mapperClass in GetClassesInNamespace(compilation, "Voyager.g"))
+		{
+			if (mapperClass != $"{generatedNamespace}.{generatedClassName}")
+			{
+				dependencyInjectionMethod.AddStatement($"{mapperClass}.AddServices(services);");
+				dependencyInjectionMethod.AddStatement($"config.RegisterAssemblyWithType<{mapperClass}>();");
+			}
+
+		}
+		dependencyInjectionMethod.AddStatement($"config.RegisterAssemblyWithType<{generatedNamespace}.{generatedClassName}>();");
+		dependencyInjectionMethod.AddStatement($"config.FinishedRegisteringAssemblies(services);");
 		var endpointMapper = voyagerGenNs
-			.AddClass(new($"EndpointMapper{debugSuffix}", Access.Public))
+			.AddClass(new(generatedClassName, Access.Public))
 			.AddBase("Voyager.IVoyagerMapping");
 		var mapEndpoints = endpointMapper
 			.AddMethod(new("MapEndpoints", access: Access.Public))
 			.AddParameter("WebApplication app");
-		var genericValidatorAdded = false;
+		var servicesMethod = endpointMapper
+			.AddMethod(new("AddServices", access: Access.Public, isStatic: true))
+			.AddParameter("IServiceCollection services");
 
 		var endpointsInitRegion = mapEndpoints.AddRegion();
+		endpointsInitRegion.AddStatement("var validatorFactory = app.Services.GetRequiredService<VoyagerUnifiedValidationFactory>();");
 		endpointsInitRegion.AddStatement("var jsonOptions = app.Services.GetRequiredService<IOptions<JsonOptions>>().Value.SerializerOptions;");
 		endpointsInitRegion.AddStatement("var modelBinder = app.Services.GetService<IModelBinder>() ?? new ModelBinder();");
 		endpointsInitRegion.AddStatement("var stringProvider = app.Services.GetService<Voyager.ModelBinding.IStringValuesProvider>() ?? new  Voyager.ModelBinding.StringValuesProvider();");
@@ -218,7 +264,7 @@ internal class SourceEmitter
 					var constructorParams = request.Properties.Where(p => p.ConstructorIndex.HasValue);
 					if (constructorParams.Any())
 					{
-						constructor = $"({string.Join(",", constructorParams.Select(p => p.GetInitValue()))})";
+						constructor = $"({string.Join(", ", constructorParams.Select(p => p.GetInitValue()))})";
 					}
 					var requestInit = mapContent.AddScope($"var request = new {request.FullName}{constructor}", ";");
 					foreach (var property in request.Properties.Where(p => !p.ConstructorIndex.HasValue))
@@ -234,74 +280,32 @@ internal class SourceEmitter
 					var validatorVariableName = $"validator_{request.FullName.Replace(".", "_")}";
 					if (!validationsAdded.Contains(validatorVariableName))
 					{
+						var notNullProps = GetNotNullProps(request);
+						endpointsInitRegion.AddStatement($"var {validatorVariableName} = validatorFactory.Create<{request.FullName}>({(notNullProps.Any() ? "true" : "")});");
+						foreach (var notNullProp in notNullProps)
+						{
+							endpointsInitRegion.AddStatement($"{validatorVariableName}.NotNull(r => r.{notNullProp.Name}, \"{notNullProp.Name}\");");
+						}
 						validationsAdded.Add(validatorVariableName);
-						if (request.ValidationMode == ValidationMode.FluentValidation)
-						{
-							AddFluentValidation();
-							endpointsInitRegion.AddStatement($"var {validatorVariableName} = new GenericValidator<{request.FullName}>();");
-							CallValidation(endpointsInitRegion, request, validatorVariableName);
-							if (!genericValidatorAdded)
-							{
-								genericValidatorAdded = true;
-								endpointMapper.AddClass(new("GenericValidator<T>", Access.Private)).AddBase("FluentValidation.AbstractValidator<T>");
-							}
-						}
-						else if (request.ValidationMode == ValidationMode.Validot)
-						{
-							endpointsInitRegion.AddStatement($"var {validatorVariableName} = {request.FullName}.{request.ValidationMethod!.Name}();");
-						}
 					}
 
-					if (request.ValidationMode == ValidationMode.FluentValidation)
+					var validationScope = mapContent.AddScope($"var validationResult = await {validatorVariableName}.Validate(request, propName => propName switch", ");");
+					var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
+					if (propertiesWithAttributes.Any())
 					{
-						mapContent.AddStatement($"var validationResult = await {validatorVariableName}.ValidateAsync(request);");
-
-						if (parameters.All(p => p.Flag != SourceGenerator.ValidationMode.FluentValidation))
+						foreach (var property in propertiesWithAttributes)
 						{
-							AddFluentValidation();
-							var @if = mapContent.AddIf("!validationResult.IsValid");
-							var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
-							if (propertiesWithAttributes.Any())
-							{
-								var scope = @if.AddScope("return Results.ValidationProblem(validationResult.Errors.GroupBy(x =>", ").ToDictionary(g => g.Key, g => g.Select(x => x.ErrorMessage).ToArray()));");
-								var @switch = scope.AddScope("return x.PropertyName switch", ";");
-								foreach (var property in propertiesWithAttributes)
-								{
-									@switch.AddStatement($"\"{property.Property.Name}\" => \"{property.SourceName}\",");
-								}
-								@switch.AddStatement("_ => x.PropertyName");
-							}
-							else
-							{
-								@if.AddStatement("return Results.ValidationProblem(validationResult.ToDictionary());");
-							}
+							validationScope.AddStatement($"\"{property.Property.Name}\" => \"{property.SourceName}\",");
 						}
 					}
-					else if (request.ValidationMode == ValidationMode.Validot)
+					validationScope.AddStatement("_ => propName");
+					if (parameters.All(p => !p.IsValidationResult))
 					{
-						mapContent.AddStatement($"var validationResult = {validatorVariableName}.Validate(request);");
-						if (parameters.All(p => p.Flag != SourceGenerator.ValidationMode.Validot))
-						{
-							var @if = mapContent.AddIf("validationResult.AnyErrors");
-							var propertiesWithAttributes = request.Properties.Where(p => p.Attribute != null && p.Property.Name != p.SourceName);
-							if (propertiesWithAttributes.Any())
-							{
-								var scope = @if.AddScope("return Results.ValidationProblem(validationResult.MessageMap.ToDictionary(kvp =>", ", kvp => kvp.Value.ToArray()));");
-								var @switch = scope.AddScope("return kvp.Key switch", ";");
-								foreach (var property in propertiesWithAttributes)
-								{
-									@switch.AddStatement($"\"{property.Property.Name}\" => \"{property.SourceName}\",");
-								}
-								@switch.AddStatement("_ => kvp.Key");
-							}
-							else
-							{
-								@if.AddStatement("return Results.ValidationProblem(validationResult.MessageMap.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToArray()));");
-							}
-						}
+						var ifValid = mapContent.AddIf("!validationResult.IsValid");
+						ifValid.AddStatement("return (IResult)TypedResults.ValidationProblem(validationResult.Errors);");
 					}
 				}
-				var typedReturn = endpoint.IsIResult ? "(IResult)" : "TypedResults.Ok";
+				var typedReturn = endpoint.IsIResult ? "" : "(IResult)TypedResults.Ok";
 				if (endpoint.IsStatic)
 				{
 					mapContent.AddStatement($"return {typedReturn}({awaitCode}{endpointClass.FullName}.{endpoint.HttpMethod}({string.Join(", ", parameters.Select(p => p.Code))}));");
@@ -327,7 +331,7 @@ internal class SourceEmitter
 			}
 		}
 
-		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, {generatedNamespace}.EndpointMapper{debugSuffix}>();");
+		servicesMethod.AddStatement($"services.AddTransient<IVoyagerMapping, {generatedNamespace}.{generatedClassName}>();");
 
 		return source.Build();
 	}
@@ -348,35 +352,11 @@ internal class SourceEmitter
 		}
 	}
 
-	private static void CallValidation(CodeBuilder code, RequestObject request, string variableName)
+	private static IEnumerable<PropertyModel> GetNotNullProps(RequestObject request)
 	{
-		foreach (var prop in request.Properties)
-		{
-			if (prop.Property.NullableAnnotation == NullableAnnotation.NotAnnotated
-				&& !prop.Property.Type.IsValueType)
-			{
-				code.AddStatement($"{variableName}.RuleFor(r => r.{prop.Name}).NotNull();");
-			}
-		}
-		if (request.ValidationMethod != null)
-		{
-			List<string> parameters = [];
-			foreach (var parameter in request.ValidationMethod.Parameters)
-			{
-				if (parameter.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{request.FullName}>")
-				{
-					parameters.Add(variableName);
-				}
-				else
-				{
-					var getService = parameter.Type.NullableAnnotation == NullableAnnotation.NotAnnotated ? "GetRequiredService" : "GetService";
-					parameters.Add($"app.Services.{getService}<{parameter.Type.ToDisplayString()}>()");
-				}
-			}
-			code.AddStatement($"{request.FullName}.{request.ValidationMethod.Name}({string.Join(", ", parameters)});");
-		}
+		return request.Properties.Where(p => p.Property.NullableAnnotation == NullableAnnotation.NotAnnotated
+			&& !p.Property.Type.IsValueType);
 	}
-
 
 	private void AddOpenApiMetadata(CodeBuilder openApiCode, Endpoint endpoint, RegionBuilder generatedRecords)
 	{
@@ -403,7 +383,7 @@ internal class SourceEmitter
 			else
 			{
 				var typeName = string.IsNullOrWhiteSpace(result.FullTypeName) ? "" : $"<{result.FullTypeName}>";
-				responseClass.AddProperty(new($"{result.FullTypeName}", $"Response{i}"));
+				responseClass.AddProperty(new($"{result.FullTypeName ?? "IResult"}", $"Response{i}"));
 				openApiCode.AddStatement($".Produces{typeName}({result.StatusCode})");
 			}
 		}

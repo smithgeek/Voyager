@@ -12,5 +12,8 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\src\Voyager.SourceGenerator\Voyager.SourceGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+		<ProjectReference Include="..\TransitiveClassLibrary\TransitiveClassLibrary.csproj" />
+		<ProjectReference Include="..\Voyager.FluentValidation\Voyager.FluentValidation.csproj" />
+		<ProjectReference Include="..\Voyager.Validot\Voyager.Validot.csproj" />
 	</ItemGroup>
 </Project>

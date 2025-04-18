@@ -75,6 +75,16 @@ namespace VoyagerApi
 		}
 	}
 
+	public class ValidotRequestSpecification : ISpecificationHolder<ValidotRequest>
+	{
+		public Specification<ValidotRequest> Specification { get; } = _ => _
+				.Member(m => m.FirstName, m => m.NotEmpty().WithMessage("name needed"))
+				.Member(m => m.LastName, m => m.NotEmpty().WithMessage("last needed"))
+				.Member(m => m.Age, m => m.GreaterThan(10).WithMessage("too young"))
+				.Member(m => m.PhoneNumbers, m => m.NotEmptyCollection().WithMessage("phone needed"))
+				.Member(m => m.UserId, m => m.GreaterThan(5).WithMessage("id must be greater than 5"));
+	}
+
 	interface IConfigurableEndpoint
 	{
 		static abstract void Configure(RouteHandlerBuilder routeHandlerBuilder);

@@ -7,9 +7,7 @@ namespace Voyager.SourceGenerator;
 
 internal class RequestObject
 {
-	public IMethodSymbol? ValidationMethod { get; set; }
-	public bool NeedsValidating => ValidationMethod != null || properties.Any(p => p.IsRequired);
-	public ValidationMode ValidationMode { get; private set; } = ValidationMode.FluentValidation;
+	public bool NeedsValidating => Properties.Any();
 	private readonly List<PropertyModel> properties = [];
 	public IReadOnlyList<PropertyModel> Properties => properties;
 	public IEnumerable<PropertyModel> BodyProperties => properties.Where(p => p.DataSource == ModelBindingSource.Body);
@@ -38,7 +36,7 @@ internal class RequestObject
 	}
 
 	public bool HasBody => properties.Any(p => p.DataSource == ModelBindingSource.Body);
-	public bool NeedsBodyClassGenerated => Properties.Any(p => p.DataSource != ModelBindingSource.Body);
+	public bool NeedsBodyClassGenerated => Properties.Any();// Properties.Any(p => p.DataSource != ModelBindingSource.Body);
 	public string BodyClass => NeedsBodyClassGenerated ? $"{Name}RequestBody" : FullName;
 	public string Name { get; }
 	public string FullName { get; }
@@ -108,20 +106,5 @@ internal class RequestObject
 
 		var staticMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
 			&& m.IsStatic).OfType<IMethodSymbol>();
-
-		foreach (var staticMethod in staticMethods ?? [])
-		{
-			var parameterTypes = staticMethod.Parameters.ToList();
-			if (parameterTypes.Any(p => p.Type.ToDisplayString() == $"FluentValidation.AbstractValidator<{requestTypeInfo.Type?.ToDisplayString()}>"))
-			{
-				ValidationMethod = staticMethod;
-				break;
-			}
-			if (staticMethod.ReturnType.ToDisplayString().Contains($"Validot.IValidator<{FullName}>"))
-			{
-				ValidationMode = ValidationMode.Validot;
-				ValidationMethod = staticMethod;
-			}
-		}
 	}
 }

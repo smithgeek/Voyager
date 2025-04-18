@@ -17,7 +17,7 @@ internal class Endpoint
 	private readonly SemanticModel semanticModel;
 	public RequestObject? Request { get; }
 
-	public bool NeedsAsync => IsTask || Request != null;
+	public bool NeedsAsync => IsTask || (Request != null && (Request.HasBody || Request.NeedsValidating));
 	private readonly string[] requestNames = ["request", "req"];
 	public bool IsStatic => method.Modifiers.Any(SyntaxKind.StaticKeyword);
 	public IEnumerable<InstanceInfo> GetInjectedParameters()
@@ -27,7 +27,14 @@ internal class Endpoint
 			{
 				if (requestNames.Any(rn => rn.Equals(p.Identifier.ValueText, StringComparison.Ordinal)))
 				{
-					return new InstanceInfo("request");
+					if (Request?.Properties.Any() ?? false)
+					{
+						return new InstanceInfo("request");
+					}
+					if (Request != null)
+					{
+						return new InstanceInfo($"new {Request.BodyClass}()");
+					}
 				}
 				return semanticModel.GetTypeInfo(p.Type!).Type.GetInstanceOf();
 			}).Where(p => p != null)!;

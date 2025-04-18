@@ -19,13 +19,9 @@ internal static class Extension
 		{
 			return new InstanceInfo("context.RequestAborted");
 		}
-		else if (typeName == "FluentValidation.Results.ValidationResult")
+		else if (typeName == "Voyager.Validation.ValidationSummary")
 		{
-			return new InstanceInfo("validationResult") { Flag = ValidationMode.FluentValidation };
-		}
-		else if (typeName == "Validot.Results.IValidationResult")
-		{
-			return new InstanceInfo("validationResult") { Flag = ValidationMode.Validot };
+			return new InstanceInfo("validationResult") { IsValidationResult = true };
 		}
 		else
 		{

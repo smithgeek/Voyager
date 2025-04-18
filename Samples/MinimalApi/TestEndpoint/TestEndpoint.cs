@@ -1,65 +1,142 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using FluentValidation;
+using Microsoft.AspNetCore.Mvc;
+using Validot;
 using Voyager;
 
 namespace Shared.TestEndpoint;
 
-[VoyagerEndpoint("/test")]
+public class EvaluateResponse
+{
+	public bool Success { get; set; } = false;
+	public string Message { get; set; } = string.Empty;
+}
+
+[VoyagerEndpoint("/propertyInjection")]
 public class TestEndpointHandler
 {
 	public required HttpContext HttpContext { get; set; }
 
-	public TestEndpointResponse Post(TestEndpointRequest request)
+	public EvaluateResponse Get()
 	{
-		return new TestEndpointResponse
+		return new EvaluateResponse
 		{
-			Status = "Success",
-			Id = HttpContext.TraceIdentifier,
-			Message = $"{request.Other} {string.Join(", ", request.List)}"
+			Success = HttpContext != null,
 		};
 	}
 }
 
-[VoyagerEndpoint("/test2")]
-public class TestEndpoint2
+public class FluentValidationRequest
 {
-	public required CancellationToken CancellationToken { get; set; }
-	public required HttpContext HttpContext { get; set; }
+	public required string Text { get; set; }
+}
 
+public class FluentValidationRequestValidator : AbstractValidator<FluentValidationRequest>
+{
+	public FluentValidationRequestValidator()
+	{
+		//RuleFor(r => r.Text).NotNull();
+	}
+}
+
+[VoyagerEndpoint("/validation/fluent")]
+public class FluentValidationHandler
+{
+	public EvaluateResponse Post(FluentValidationRequest request)
+	{
+		return new() { Success = true };
+	}
+}
+
+public class ValidotRequest
+{
+	public string? Text { get; set; }
+}
+
+public class ValidotRequestSpecificationHolder : ISpecificationHolder<ValidotRequest>
+{
+	public ValidotRequestSpecificationHolder()
+	{
+		Specification = s => s.Member(m => m.Text, m => m.Required());
+	}
+
+	public Specification<ValidotRequest> Specification { get; }
+}
+
+[VoyagerEndpoint("/validation/validot")]
+public class ValidotHandler
+{
+	public EvaluateResponse Post(ValidotRequest request)
+	{
+		return new() { Success = true };
+	}
+}
+
+public class DefaultValidtorRequest
+{
+	public required string Text { get; set; }
+}
+
+[VoyagerEndpoint("/validation/default")]
+public class DefaultValidationHandler
+{
+	public EvaluateResponse Post(DefaultValidtorRequest request)
+	{
+		return new() { Success = true };
+	}
+}
+
+[VoyagerEndpoint("/validation/handledByHandler")]
+public class ValidationHandledByHandler
+{
+	public EvaluateResponse Post(DefaultValidtorRequest request, Voyager.Validation.ValidationSummary validationSummary)
+	{
+		return new() { Success = validationSummary.IsValid, Message = "Handler" };
+	}
+}
+
+[VoyagerEndpoint("/configured")]
+public class ConfigureEndpoint
+{
 	public static void Configure(RouteHandlerBuilder builder)
 	{
-		builder.WithDescription("Some description");
+		builder.RequireHost("smithgeek.com");
 	}
 
-	public TestEndpointResponse Post(TestEndpointRequest request, HttpContext context3, CancellationToken cancel2)
+	public EvaluateResponse Get()
 	{
-		return new TestEndpointResponse
-		{
-			Status = "Success",
-			Id = HttpContext.TraceIdentifier,
-			Message = $"{request.Other} {string.Join(", ", request.List)}"
-		};
+		return new() { Success = true };
 	}
 }
+
+[VoyagerEndpoint("/cancelToken")]
+public class CancellationTokenEndpoint
+{
+	public EvaluateResponse Get(CancellationToken cancellationToken)
+	{
+		return new() { Success = cancellationToken != CancellationToken.None };
+	}
+}
+
+// anonymous response
 
 [VoyagerEndpoint("/anonymousResponse")]
 public class AnonymousResponse
 {
-	public IResult Get(Body request)
+	public IResult Post(Body request)
 	{
 		if (request.Test == null)
 		{
 			var response = new ObjectResponse
 			{
-				Text = "here"
+				Text = "1"
 			};
-			return TypedResults.Ok(new { response });
+			return TypedResults.Ok(response);
 		}
 		var response2 = new ObjectResponse
 		{
-			Text = request.Test,
-			OtherText = "abc"
+			Text = "2"
 		};
-		return TypedResults.Ok(new { response2 });
+		return TypedResults.Ok(response2);
 	}
 
 	public class Body
@@ -91,16 +168,11 @@ public class MultipleInjections
 [VoyagerEndpoint("/records")]
 public class RecordsEndpoint
 {
-	public record GetRequest([FromQuery] string Id, int Value, string? Text, string Name, Policy policy);
+	public record RecordRequest([FromQuery] string Id, int Value, string? Text, string Name, Policy policy);
 
-	public static IResult Get(GetRequest request)
+	public static IResult Post(RecordRequest request)
 	{
-		return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name}" });
-	}
-
-	public static IResult Post(GetRequest request)
-	{
-		return TypedResults.Ok();
+		return TypedResults.Ok(new { value = $"{request.Id} {request.Value} {request.Name} {request.policy.Rules.Count} {request.policy.Rules[0].Value}" });
 	}
 }
 
