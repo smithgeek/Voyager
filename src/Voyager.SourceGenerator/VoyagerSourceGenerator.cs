@@ -277,7 +277,7 @@ internal class SourceEmitter
 				var parameters = endpoint.GetInjectedParameters();
 				if (request?.NeedsValidating ?? false)
 				{
-					var validatorVariableName = $"validator_{request.FullName.Replace(".", "_")}";
+					var validatorVariableName = $"validator_{request.FullName.Replace(".", "_").Replace("<", "__").Replace(">", "__")}";
 					if (!validationsAdded.Contains(validatorVariableName))
 					{
 						var notNullProps = GetNotNullProps(request);

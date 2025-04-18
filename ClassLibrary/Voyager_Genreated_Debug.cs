@@ -35,6 +35,9 @@ namespace Voyager.g
             validator_ClassLibrary_Request2.NotNull(r => r.Name, "Name");
             var inst_ClassLibrary_EmptyRequestHandler = app.Services.GetRequiredService<ClassLibrary.EmptyRequestHandler>();
             var inst_ClassLibrary_GenericRequestHandler = app.Services.GetRequiredService<ClassLibrary.GenericRequestHandler>();
+            var validator_ClassLibrary_SupabasePayload_ClassLibrary_Display_ = validatorFactory.Create<ClassLibrary.SupabasePayload<ClassLibrary.Display>>(true);
+            validator_ClassLibrary_SupabasePayload_ClassLibrary_Display_.NotNull(r => r.Table, "Table");
+            validator_ClassLibrary_SupabasePayload_ClassLibrary_Display_.NotNull(r => r.Schema, "Schema");
             app.MapPost("/test", async (HttpContext context) =>
             {
                 using var body = await JsonDocument.ParseAsync(context.Request.Body);
@@ -80,11 +83,28 @@ namespace Voyager.g
             ).Accepts<ClassLibrary.EmptyRequest>("application/json").Produces<bool>(200)
 
             ;
-            app.MapPost("/generic/req",  (HttpContext context) =>
+            app.MapPost("/generic/req", async (HttpContext context) =>
             {
-                return (IResult)TypedResults.Ok(inst_ClassLibrary_GenericRequestHandler.Post(context.RequestServices.GetRequiredService<ClassLibrary.SupabasePayload<ClassLibrary.Display>>()));
+                using var body = await JsonDocument.ParseAsync(context.Request.Body);
+                var request = new ClassLibrary.SupabasePayload<ClassLibrary.Display>
+                {
+                    Type = body.MaybeGetDeserialize<ClassLibrary.EventType>("Type")!,
+                    Table = body.MaybeGetString("Table")!,
+                    Schema = body.MaybeGetString("Schema")!,
+                    Record = body.MaybeGetDeserialize<ClassLibrary.Display?>("Record"),
+                    OldRecord = body.MaybeGetDeserialize<ClassLibrary.Display?>("OldRecord"),
+                };
+                var validationResult = await validator_ClassLibrary_SupabasePayload_ClassLibrary_Display_.Validate(request, propName => propName switch
+                {
+                    _ => propName
+                });
+                if(!validationResult.IsValid)
+                {
+                    return (IResult)TypedResults.ValidationProblem(validationResult.Errors);
+                }
+                return (IResult)TypedResults.Ok(inst_ClassLibrary_GenericRequestHandler.Post(request));
             }
-            ).Produces<bool>(200)
+            ).ProducesValidationProblem(400).Accepts<ClassLibrary.SupabasePayload<ClassLibrary.Display>>("application/json").Produces<bool>(200)
 
             ;
         }

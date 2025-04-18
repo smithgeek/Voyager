@@ -64,12 +64,16 @@ internal class Endpoint
 		Path = path.Trim('"');
 		NamePrefix = $"{namePrefix}{HttpMethod}";
 		var requestTypeSyntax = method.ParameterList.Parameters.FirstOrDefault(p => requestNames.Any(rn => rn.Equals(p.Identifier.Text, StringComparison.OrdinalIgnoreCase)))?.Type;
-		var requestType = string.Empty;
 		if (requestTypeSyntax is IdentifierNameSyntax name)
 		{
-			requestType = name.Identifier.ToFullString().Trim();
 			var requestTypeInfo = semanticModel.GetTypeInfo(name);
 			var declaringSyntax = semanticModel.GetSymbolInfo(name).Symbol?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
+			Request = new RequestObject(requestTypeInfo, NamePrefix, declaringSyntax, semanticModel);
+		}
+		else if (requestTypeSyntax is GenericNameSyntax genericName)
+		{
+			var requestTypeInfo = semanticModel.GetTypeInfo(genericName);
+			var declaringSyntax = semanticModel.GetSymbolInfo(genericName).Symbol?.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax();
 			Request = new RequestObject(requestTypeInfo, NamePrefix, declaringSyntax, semanticModel);
 		}
 	}

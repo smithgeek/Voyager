@@ -101,7 +101,7 @@ internal class RequestObject
 		}
 
 		Name = namePrefix;
-		FullName = requestTypeInfo.Type?.OriginalDefinition?.ToString() ?? Name;
+		FullName = requestTypeInfo.Type?.ToDisplayString() ?? Name;
 
 
 		var staticMethods = requestTypeInfo.ConvertedType?.GetMembers().Where(m => m.Kind == SymbolKind.Method
