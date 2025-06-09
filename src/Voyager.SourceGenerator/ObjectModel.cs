@@ -120,24 +120,25 @@ internal class PropertyModel
 
 	public string GetInitValue()
 	{
+		var defaultValue = DefaultValue == null ? string.Empty : $" ?? {DefaultValue}";
 		if (DataSource == ModelBindingSource.Body)
 		{
 			var getFunc = GetBodyPropType();
 			var modifier = IsNullable || !string.IsNullOrWhiteSpace(DefaultValue) ? "" :
 				((getFunc == "String" || getFunc == null) ? "!" : "!.Value");
 			getFunc ??= $"Deserialize<{ToDisplayType()}>";
-			return $"body.MaybeGet{getFunc}(\"{property.Name}\"){modifier}";
+			return $"body.MaybeGet{getFunc}(\"{SourceName}\"){modifier}{defaultValue}";
 		}
 		else if (DataSource == ModelBindingSource.Route
 			|| DataSource == ModelBindingSource.Query
 			|| DataSource == ModelBindingSource.Header
 			|| DataSource == ModelBindingSource.Form)
 		{
-			return $"{SourceName}";
+			return $"{SourceName}{defaultValue}";
 		}
 		else
 		{
-			return GetValueFromModelBinder();
+			return $"{GetValueFromModelBinder()}{defaultValue}";
 		}
 	}
 

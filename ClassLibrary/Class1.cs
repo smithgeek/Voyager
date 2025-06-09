@@ -9,7 +9,7 @@ namespace ClassLibrary;
 
 public class Request
 {
-	public required string Name { get; set; }
+	public string Name { get; set; } = string.Empty;
 }
 
 [VoyagerEndpoint("/test")]
